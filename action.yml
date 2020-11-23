@@ -72,5 +72,5 @@ runs:
       uses: xamarin/comment-on-issue@v1
       with:
         issue_number: ${{ steps.get_parameters.outputs.pr_number }}
-        message: "Backport Job Created! The magic is happening [here](${{ steps.ado_build.outputs.build_uri }})."
+        message: "Backport Job Created! The magic is happening [here](https://dev.azure.com/${{ secrets.ADO_PROJECTCOLLECTION }}/${{ secrets.ADO_PROJECT }}/_build/results?buildId=${{ steps.ado_build.outputs.build_id}})."
         repo: ${{ inputs.github_repository }}
