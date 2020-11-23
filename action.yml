@@ -1,0 +1,76 @@
+name: Backport Pull Request from Comment
+description: Launches a Backport Job from a GitHub Comment on an Issue
+author: Connor Adsit <cadsit@microsoft.com>
+inputs:
+# NOTE: This uses a couple of implicit parameters assumed to be stored in the organization's secrets:
+#   - SERVICEACCOUNT_PAT: GitHub PAT for an account that has access to the desired repository.
+#       The account needs write access to the repository and the PAT should have at least the repo scope
+#   - ADO_PROJECTCOLLECTION: Azure DevOps organization that hosts the pipeline
+#   - ADO_PROJECT: Azure DevOps project that hosts the pipeline
+#   - BACKPORT_PIPELINEID: ID of the pipeline to run
+  pull_request_url:
+    description: URL of the pull request from the issue comment event
+    required: true
+  comment_body:
+    description: Message of the comment on a PR
+    required: true
+  github_repository:
+    description: GitHub Repository where the comment was written
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Gather Parameters
+      id: get_parameters
+      run: |
+        ($repoOwner, $repoName) = "${{ inputs.github_repository }}".Split("/")
+
+        Write-Host "Parsing ${{ inputs.comment_body }}"
+        ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split("${{ inputs.comment_body }}", "\s+")
+
+        $headers = $headers = @{ Authorization = "token ${{ secrets.SERVICEACCOUNT_PAT }}"}
+        Write-Host "Grabbing PR details from ${{ inputs.pull_request_url }}"
+        $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
+        $backportPRNumber = $response.number
+        $backportTitle = $response.title
+        $backportDescription = $response.body
+        $backportHeadSha = $response.head.sha
+
+        $parameters = @{
+          BackportRepoName = "$repoName";
+          BackportRepoOrg = "$repoOwner";
+          BackportTargetBranch = "$backportTargetBranch";
+          BackportPRNumber = "$backportPRNumber";
+          BackportTitle = $backportTitle;
+          BackportDescription = $backportDescription;
+          BackportHeadSHA = $backportHeadSha;
+        } | ConvertTo-Json
+
+        echo "::set-output name=parameters::$parameters"
+        echo "::set-output name=pr_number::$backportPRNumber"
+      shell: pwsh
+
+    - id: ado_build
+      uses: xamarin/launch-ado-yaml-pipeline@v1
+      with:
+        ado_organization: ${{ secrets.ADO_PROJECTCOLLECTION }}
+        ado_project: ${{ secrets.ADO_PROJECT }}
+        ado_pipeline_id: ${{ secrets.BACKPORT_PIPELINEID }}
+        ado_pipeline_ref: "refs/heads/yaml-pipeline"
+        parameters: ${{ steps.get_parameters.outputs.parameters }}
+
+    - id: failure_comment
+      if: ${{ failure() }}
+      uses: xamarin/comment-on-issue@v1
+      with:
+        issue_number: ${{ steps.get_parameters.outputs.pr_number }}
+        message: "I couldn't create a backport for you. :( Please check the Action logs for more details."
+        repo: ${{ inputs.github_repository }}
+
+    - id: success_comment
+      uses: xamarin/comment-on-issue@v1
+      with:
+        issue_number: ${{ steps.get_parameters.outputs.pr_number }}
+        message: "Backport Job Created! The magic is happening [here](${{ steps.ado_build.outputs.build_uri }})."
+        repo: ${{ inputs.github_repository }}
