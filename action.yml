@@ -104,6 +104,6 @@ runs:
           Write-Host "Posting to $uri"
           Write-Host "$jsonBody"
           Invoke-WebRequest -UseBasicParsing -Headers $headers -Method POST -Uri $uri -Body $jsonBody
-          return $statusCode
         }
+        return $statusCode
       shell: pwsh
