@@ -64,42 +64,46 @@ runs:
     - name: Launch ADO Build
       id: ado_build
       run: |
-        $launchURI = "https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_apis/pipelines/${{ inputs.backport_pipeline_id }}/runs?api-version=6.0-preview.1"
-        $parameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
-        $jsonBody = @{
-            previewRun = false;
-            templateParameters = $parameters;
-            resources = @{
-              repositories = @{
-                self = @{
-                  refName = "refs/heads/yaml-pipeline"
+        $message = ""
+        $statusCode = 0
+        try {
+          $launchURI = "https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_apis/pipelines/${{ inputs.backport_pipeline_id }}/runs?api-version=6.0-preview.1"
+          $parameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
+          $jsonBody = @{
+              previewRun = false;
+              templateParameters = $parameters;
+              resources = @{
+                repositories = @{
+                  self = @{
+                    refName = "refs/heads/yaml-pipeline"
+                  }
                 }
-              }
-            };
-          } | ConvertTo-Json -Depth 10
+              };
+            } | ConvertTo-Json -Depth 10
 
-        Write-Host "Posting to $launchURI"
-        Write-Host $json
-        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${{ inputs.ado_build_pat }}"))
-        $headers = @{ Authorization = "Basic $encoded"}
+          Write-Host "Posting to $launchURI"
+          Write-Host $json
+          $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${{ inputs.ado_build_pat }}"))
+          $headers = @{ Authorization = "Basic $encoded"}
 
-        $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
-        echo "Job successfully launched: https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_build/results?buildId=$($responseJson.id)"
-        echo "::set-output name=build_id::$($responseJson.id)"
-        return 0
+          $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
+          echo "Job successfully launched"
+          $message = "Backport Job Created! The magic is happening [here](https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_build/results?buildId=$($responseJson.id))"
+        } catch {
+          $message = "I couldn't create a backport for you. :( Please check the Action logs for more details."
+          $statusCode = 1
+        } finally {
+          $jsonBody = @{
+            body = $message
+          } | ConvertTo-Json
+
+          $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
+          $uri = "https://api.github.com/repos/${{ inputs.github_repository }}/issues/${{ steps.get_parameters.outputs.pr_number }}/comments"
+
+
+          Write-Host "Posting to $uri"
+          Write-Host "$jsonBody"
+          Invoke-WebRequest -UseBasicParsing -Headers $headers -Method POST -Uri $uri -Body $jsonBody
+          return $statusCode
+        }
       shell: pwsh
-
-    # - id: failure_comment
-    #   if: ${{ failure() }}
-    #   uses: xamarin/comment-on-issue@v1
-    #   with:
-    #     issue_number: ${{ steps.get_parameters.outputs.pr_number }}
-    #     message: "I couldn't create a backport for you. :( Please check the Action logs for more details."
-    #     repo: ${{ inputs.github_repository }}
-
-    # - id: success_comment
-    #   uses: xamarin/comment-on-issue@v1
-    #   with:
-    #     issue_number: ${{ steps.get_parameters.outputs.pr_number }}
-    #     message: "Backport Job Created! The magic is happening [here](https://dev.azure.com/${{ secrets.ADO_PROJECTCOLLECTION }}/${{ secrets.ADO_PROJECT }}/_build/results?buildId=${{ steps.ado_build.outputs.build_id}})."
-    #     repo: ${{ inputs.github_repository }}
