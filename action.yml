@@ -2,13 +2,6 @@ name: Backport Pull Request from Comment
 description: Launches a Backport Job from a GitHub Comment on an Issue
 author: Connor Adsit <cadsit@microsoft.com>
 inputs:
-# NOTE: This uses a couple of implicit parameters assumed to be stored in the organization's secrets:
-#   - SERVICEACCOUNT_PAT: GitHub PAT for an account that has access to the desired repository.
-#       The account needs write access to the repository and the PAT should have at least the repo scope
-#   - ADO_PROJECTCOLLECTION: Azure DevOps organization that hosts the pipeline
-#   - ADO_PROJECT: Azure DevOps project that hosts the pipeline
-#   - BACKPORT_PIPELINEID: ID of the pipeline to run
-#   - ADO_BUILDPAT: a ADO PAT for an account that has permissions to run pipelines
   pull_request_url:
     description: URL of the pull request from the issue comment event
     required: true
@@ -17,6 +10,21 @@ inputs:
     required: true
   github_repository:
     description: GitHub Repository where the comment was written
+    required: true
+  ado_organization:
+    description: Azure DevOps organization that hosts the backport job
+    required: true
+  ado_project:
+    description: Azure DevOps project that hosts the backport job
+    required: true
+  backport_pipeline_id:
+    description: ID of the backport yaml pipeline in Azure DevOps
+    required: true
+  ado_build_pat:
+    description: PAT of an account that can launch builds on the backport pipeline in Azure DevOps
+    required: true
+  github_account_pat:
+    description: PAT for a github account that has write access to source repository
     required: true
 
 runs:
@@ -30,7 +38,7 @@ runs:
         Write-Host "Parsing ${{ inputs.comment_body }}"
         ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split("${{ inputs.comment_body }}", "\s+")
 
-        $headers = $headers = @{ Authorization = "token ${{ secrets.SERVICEACCOUNT_PAT }}"}
+        $headers = $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
         Write-Host "Grabbing PR details from ${{ inputs.pull_request_url }}"
         $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
         $backportPRNumber = $response.number
@@ -55,7 +63,7 @@ runs:
     - name: Launch ADO Build
       id: ado_build
       run: |
-        $launchURI = "https://dev.azure.com/${{ secrets.ADO_PROJECTCOLLECTION }}/${{ secrets.ADO_PROJECT }}/_apis/pipelines/${{ secrets.BACKPORT_PIPELINEID }}/runs?api-version=6.0-preview.1"
+        $launchURI = "https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_apis/pipelines/${{ inputs.backport_pipeline_id }}/runs?api-version=6.0-preview.1"
         $parameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
         $jsonBody = @{
             previewRun = false;
@@ -71,11 +79,11 @@ runs:
 
         Write-Host "Posting to $launchURI"
         Write-Host $json
-        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${{ secrets.ADO_BUILDPAT }}"))
+        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${{ inputs.ado_build_pat }}"))
         $headers = @{ Authorization = "Basic $encoded"}
 
         $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
-        echo "Job successfully launched: https://dev.azure.com/${{ secrets.ADO_PROJECTCOLLECTION }}/${{ secrets.ADO_PROJECT }}/_build/results?buildId=$($responseJson.id)"
+        echo "Job successfully launched: https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_build/results?buildId=$($responseJson.id)"
         echo "::set-output name=build_id::$($responseJson.id)"
         return 0
       shell: pwsh
