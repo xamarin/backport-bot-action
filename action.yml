@@ -8,6 +8,7 @@ inputs:
 #   - ADO_PROJECTCOLLECTION: Azure DevOps organization that hosts the pipeline
 #   - ADO_PROJECT: Azure DevOps project that hosts the pipeline
 #   - BACKPORT_PIPELINEID: ID of the pipeline to run
+#   - ADO_BUILDPAT: a ADO PAT for an account that has permissions to run pipelines
   pull_request_url:
     description: URL of the pull request from the issue comment event
     required: true
@@ -51,26 +52,45 @@ runs:
         echo "::set-output name=pr_number::$backportPRNumber"
       shell: pwsh
 
-    - id: ado_build
-      uses: xamarin/launch-ado-yaml-pipeline@v1
-      with:
-        ado_organization: ${{ secrets.ADO_PROJECTCOLLECTION }}
-        ado_project: ${{ secrets.ADO_PROJECT }}
-        ado_pipeline_id: ${{ secrets.BACKPORT_PIPELINEID }}
-        ado_pipeline_ref: "refs/heads/yaml-pipeline"
-        parameters: ${{ steps.get_parameters.outputs.parameters }}
+    - name: Launch ADO Build
+      id: ado_build
+      run: |
+        $launchURI = "https://dev.azure.com/${{ secrets.ADO_PROJECTCOLLECTION }}/${{ secrets.ADO_PROJECT }}/_apis/pipelines/${{ secrets.BACKPORT_PIPELINEID }}/runs?api-version=6.0-preview.1"
+        $parameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
+        $jsonBody = @{
+            previewRun = false;
+            templateParameters = $parameters;
+            resources = @{
+              repositories = @{
+                self = @{
+                  refName = "refs/heads/yaml-pipeline"
+                }
+              }
+            };
+          } | ConvertTo-Json -Depth 10
 
-    - id: failure_comment
-      if: ${{ failure() }}
-      uses: xamarin/comment-on-issue@v1
-      with:
-        issue_number: ${{ steps.get_parameters.outputs.pr_number }}
-        message: "I couldn't create a backport for you. :( Please check the Action logs for more details."
-        repo: ${{ inputs.github_repository }}
+        Write-Host "Posting to $launchURI"
+        Write-Host $json
+        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${{ secrets.ADO_BUILDPAT }}"))
+        $headers = @{ Authorization = "Basic $encoded"}
 
-    - id: success_comment
-      uses: xamarin/comment-on-issue@v1
-      with:
-        issue_number: ${{ steps.get_parameters.outputs.pr_number }}
-        message: "Backport Job Created! The magic is happening [here](https://dev.azure.com/${{ secrets.ADO_PROJECTCOLLECTION }}/${{ secrets.ADO_PROJECT }}/_build/results?buildId=${{ steps.ado_build.outputs.build_id}})."
-        repo: ${{ inputs.github_repository }}
+        $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
+        echo "Job successfully launched: https://dev.azure.com/${{ secrets.ADO_PROJECTCOLLECTION }}/${{ secrets.ADO_PROJECT }}/_build/results?buildId=$($responseJson.id)"
+        echo "::set-output name=build_id::$($responseJson.id)"
+        return 0
+      shell: pwsh
+
+    # - id: failure_comment
+    #   if: ${{ failure() }}
+    #   uses: xamarin/comment-on-issue@v1
+    #   with:
+    #     issue_number: ${{ steps.get_parameters.outputs.pr_number }}
+    #     message: "I couldn't create a backport for you. :( Please check the Action logs for more details."
+    #     repo: ${{ inputs.github_repository }}
+
+    # - id: success_comment
+    #   uses: xamarin/comment-on-issue@v1
+    #   with:
+    #     issue_number: ${{ steps.get_parameters.outputs.pr_number }}
+    #     message: "Backport Job Created! The magic is happening [here](https://dev.azure.com/${{ secrets.ADO_PROJECTCOLLECTION }}/${{ secrets.ADO_PROJECT }}/_build/results?buildId=${{ steps.ado_build.outputs.build_id}})."
+    #     repo: ${{ inputs.github_repository }}
