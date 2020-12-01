@@ -54,9 +54,9 @@ runs:
           BackportTitle = $backportTitle;
           BackportDescription = $backportDescription;
           BackportHeadSHA = $backportHeadSha;
-        } | ConvertTo-Json
+        } | ConvertTo-Json -Compress
 
-        echo "::set-output name=parameters::$parameters"
+        echo "::set-output name=parameters::$($parameters.Replace("`"","'"))"
         echo "::set-output name=pr_number::$backportPRNumber"
       shell: pwsh
 
