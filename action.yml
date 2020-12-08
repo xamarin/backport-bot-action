@@ -5,6 +5,9 @@ inputs:
   pull_request_url:
     description: URL of the pull request from the issue comment event
     required: true
+  comment_author:
+    description: Author of the PR comment
+    required: true
   comment_body:
     description: Message of the comment on a PR
     required: true
@@ -33,32 +36,41 @@ runs:
     - name: Gather Parameters
       id: get_parameters
       run: |
-        ($repoOwner, $repoName) = "${{ inputs.github_repository }}".Split("/")
+        $statusCode = 0
+        $message = ""
+        try {
+          ($repoOwner, $repoName) = "${{ inputs.github_repository }}".Split("/")
+          $headers = $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
+          Invoke-WebRequest -Headers $headers -Uri https://api.github.com/orgs/$repoOWner/members/${{ inputs.comment_author }}
 
-        Write-Host "Parsing ${{ inputs.comment_body }}"
-        ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split("${{ inputs.comment_body }}", "\s+")
+          Write-Host "Parsing ${{ inputs.comment_body }}"
+          ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split("${{ inputs.comment_body }}", "\s+")
 
-        $headers = $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
-        Write-Host "Grabbing PR details from ${{ inputs.pull_request_url }}"
-        $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
-        $backportPRNumber = $response.number
-        $backportTitle = $response.title
-        $backportDescription = $response.body
-        $backportHeadSha = $response.head.sha
+          Write-Host "Grabbing PR details from ${{ inputs.pull_request_url }}"
+          $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
+          $backportPRNumber = $response.number
+          $backportTitle = $response.title
+          $backportDescription = $response.body
+          $backportHeadSha = $response.head.sha
 
-        $parameters = @{
-          BackportRepoName = "$repoName";
-          BackportRepoOrg = "$repoOwner";
-          BackportTargetBranch = "$backportTargetBranch";
-          BackportPRNumber = "$backportPRNumber";
-          BackportTitle = $backportTitle;
-          BackportDescription = $backportDescription;
-          BackportHeadSHA = $backportHeadSha;
-        } | ConvertTo-Json -Compress
+          $parameters = @{
+            BackportRepoName = "$repoName";
+            BackportRepoOrg = "$repoOwner";
+            BackportTargetBranch = "$backportTargetBranch";
+            BackportPRNumber = "$backportPRNumber";
+            BackportTitle = $backportTitle;
+            BackportDescription = $backportDescription;
+            BackportHeadSHA = $backportHeadSha;
+          } | ConvertTo-Json -Compress
 
-        $json = $parameters.Replace("`"","'")
-        echo "::set-output name=parameters::$json"
-        echo "::set-output name=pr_number::$backportPRNumber"
+          $json = $parameters.Replace("`"","'")
+          echo "::set-output name=parameters::$json"
+          echo "::set-output name=pr_number::$backportPRNumber"
+        } catch (ex) {
+          Write-Host ex.Message
+          $statusCode = 1
+        }
+        return $statusCode
       shell: pwsh
 
     - name: Launch ADO Build
