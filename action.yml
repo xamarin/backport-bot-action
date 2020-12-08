@@ -41,10 +41,15 @@ runs:
         try {
           ($repoOwner, $repoName) = "${{ inputs.github_repository }}".Split("/")
           $headers = $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
-          $uri = "https://api.github.com/orgs/$repoOwner/members/${{ inputs.comment_author }}"
+          $uri = "https://api.github.com/repos/$repoOwner/$repoName/collaborators/${{ inputs.comment_author }}/permission"
           Write-Host "Checking $repoOwner membership for ${{ inputs.comment_author }} via $uri"
-          Invoke-WebRequest -Headers $headers -Uri $uri
-          Write-Host "Found membership"
+          $response = Invoke-WebRequest -Headers $headers -Uri $uri
+          $content = $response.Content | ConvertFrom-Json
+          $accessType = $content.permission
+          Write-Host "Found membership: $accessType"
+          if (-not ($accessType.Equals("admin") -or $accessType.Equals("write"))) {
+            throw "${{ inputs.comment_author }}/permission does not have sufficient permissions for ${{ inputs.github_repository }}"
+          }
 
           Write-Host "Parsing ${{ inputs.comment_body }}"
           ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split("${{ inputs.comment_body }}", "\s+")
