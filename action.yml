@@ -66,8 +66,8 @@ runs:
           $json = $parameters.Replace("`"","'")
           echo "::set-output name=parameters::$json"
           echo "::set-output name=pr_number::$backportPRNumber"
-        } catch (ex) {
-          Write-Host ex.Message
+        } catch {
+          Write-Host $_.Message
           $statusCode = 1
         }
         return $statusCode
