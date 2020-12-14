@@ -72,10 +72,11 @@ runs:
           } | ConvertTo-Json -Compress
 
           $json = $parameters.Replace("`"","'")
+          Write-Host "Setting output variables"
           echo "::set-output name=parameters::$json"
           echo "::set-output name=pr_number::$backportPRNumber"
         } catch {
-          Write-Host $_.Message
+          Write-Host $_.Exception.Message
           $statusCode = 1
         }
         return $statusCode
@@ -88,7 +89,9 @@ runs:
         $statusCode = 0
         try {
           $launchURI = "https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_apis/pipelines/${{ inputs.backport_pipeline_id }}/runs?api-version=6.0-preview.1"
+          Write-Host "Grabbing parameters from prior step"
           $parameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
+          Write-Host "$parameters"
           $jsonBody = @{
               previewRun = false;
               templateParameters = $parameters;
@@ -102,7 +105,7 @@ runs:
             } | ConvertTo-Json -Depth 10
 
           Write-Host "Posting to $launchURI"
-          Write-Host $json
+          Write-Host $jsonBody
           $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${{ inputs.ado_build_pat }}"))
           $headers = @{ Authorization = "Basic $encoded"}
 
@@ -110,6 +113,7 @@ runs:
           echo "Job successfully launched"
           $message = "Backport Job Created! The magic is happening [here](https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_build/results?buildId=$($responseJson.id))"
         } catch {
+          Write-Host $_.Exception.Message
           $message = "I couldn't create a backport for you. :( Please check the Action logs for more details."
           $statusCode = 1
         } finally {
