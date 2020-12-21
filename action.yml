@@ -57,18 +57,13 @@ runs:
           Write-Host "Grabbing PR details from ${{ inputs.pull_request_url }}"
           $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
           $backportPRNumber = $response.number
-          $backportTitle = $response.title
-          $backportDescription = $response.body
-          $backportHeadSha = $response.head.sha
 
           $parameters = @{
             BackportRepoName = "$repoName";
             BackportRepoOrg = "$repoOwner";
             BackportTargetBranch = "$backportTargetBranch";
             BackportPRNumber = "$backportPRNumber";
-            BackportTitle = $backportTitle;
-            BackportDescription = $backportDescription;
-            BackportHeadSHA = $backportHeadSha;
+            BackportHeadSHA = "$($response.head.sha)"
           } | ConvertTo-Json -Compress
 
           $json = $parameters.Replace("`"","'")
