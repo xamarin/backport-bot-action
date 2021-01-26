@@ -29,6 +29,10 @@ inputs:
   github_account_pat:
     description: PAT for a github account that has write access to source repository
     required: true
+  use_fork:
+    description: The action should create a PR from a fork
+    required: false
+    default: 'false'
 
 runs:
   using: "composite"
@@ -64,6 +68,7 @@ runs:
             BackportTargetBranch = "$backportTargetBranch";
             BackportPRNumber = "$backportPRNumber";
             BackportHeadSHA = "$($response.head.sha)"
+            UseFork = "${{ inputs.use_fork }}"
           } | ConvertTo-Json -Compress
 
           $json = $parameters.Replace("`"","'")
