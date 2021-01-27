@@ -67,8 +67,8 @@ runs:
             BackportRepoOrg = "$repoOwner";
             BackportTargetBranch = "$backportTargetBranch";
             BackportPRNumber = "$backportPRNumber";
-            BackportHeadSHA = "$($response.head.sha)"
-            UseFork = "${{ inputs.use_fork }}" -eq "true"
+            BackportHeadSHA = "$($response.head.sha)";
+            UseFork = "${{ inputs.use_fork }}" -eq "true";
           } | ConvertTo-Json -Compress
 
           $json = $parameters.Replace("`"","'")
