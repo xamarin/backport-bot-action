@@ -62,7 +62,7 @@ runs:
           $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
           $backportPRNumber = $response.number
 
-          # we can have a comment that wanted to backport to several PRs, that would mean that we create a backport pr branch 
+          # we can have a comment that wants to backport to several PRs, that would mean that we create a backport per branch 
 
           $parameters = @()
 
