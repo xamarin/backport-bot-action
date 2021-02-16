@@ -62,7 +62,7 @@ runs:
           $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
           $backportPRNumber = $response.number
 
-          # we can have a comment that wants to backport to several PRs, that would mean that we create a backport per branch 
+          # we can have a comment that wants to backport to several PRs, that would mean that we create a backport per branch
 
           $parameters = [System.Collections.ArrayList]@()
 
@@ -123,15 +123,16 @@ runs:
 
           try {
             $jsonBody = @{
-                previewRun = false;
-                templateParameters = $parameters;
-                resources = @{
-                  repositories = @{
-                    self = @{
-                      refName = "refs/heads/yaml-pipeline"
-                    }
+              previewRun = false;
+              templateParameters = $parameters;
+              resources = @{
+                repositories = @{
+                  self = @{
+                    refName = "refs/heads/yaml-pipeline"
                   }
-              } | ConvertTo-Json -Depth 10
+                }
+              }
+            } | ConvertTo-Json -Depth 10
 
             Write-Host "Posting to $launchURI"
             Write-Host $jsonBody
@@ -161,12 +162,12 @@ runs:
 
           return $statusCode
         } # block
-        
-        # a little ugly, but not terribly ugly, we are going add the status code per callback and use that as our return, if everything work, we always get 0 and we return 0, else we return the number of errors 
+
+        # a little ugly, but not terribly ugly, we are going add the status code per callback and use that as our return, if everything work, we always get 0 and we return 0, else we return the number of errors
         $exitCode = 0
         foreach ($p in $backportParameters) {
           # what a great and nice way to cal a lambda, the & is a must or you wont do a thing, &$ is just nice syntax
-          $exitCode += &$createBackport($p) 
+          $exitCode += &$createBackport($p)
         }
         return $exitCode
       shell: pwsh
