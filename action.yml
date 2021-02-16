@@ -64,7 +64,7 @@ runs:
 
           # we can have a comment that wants to backport to several PRs, that would mean that we create a backport per branch 
 
-          $parameters = @()
+          $parameters = [System.Collections.ArrayList]@()
 
           if ($backportTargetBranch -is [string]) { # uh, this is ugly, but String also has length and we can iterate, so we need the type
             $parameters.Add(
