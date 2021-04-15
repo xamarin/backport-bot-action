@@ -62,16 +62,39 @@ runs:
           $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
           $backportPRNumber = $response.number
 
-          $parameters = @{
-            BackportRepoName = "$repoName";
-            BackportRepoOrg = "$repoOwner";
-            BackportTargetBranch = "$backportTargetBranch";
-            BackportPRNumber = "$backportPRNumber";
-            BackportHeadSHA = "$($response.head.sha)";
-            UseFork = "${{ inputs.use_fork }}" -eq "true";
-          } | ConvertTo-Json -Compress
+          # we can have a comment that wants to backport to several PRs, that would mean that we create a backport per branch
 
-          $json = $parameters.Replace("`"","'")
+          $parameters = [System.Collections.ArrayList]@()
+
+          if ($backportTargetBranch -is [string]) { # uh, this is ugly, but String also has length and we can iterate, so we need the type
+            $parameters.Add(
+              @{
+                BackportRepoName = "$repoName";
+                BackportRepoOrg = "$repoOwner";
+                BackportTargetBranch = "$backportTargetBranch";
+                BackportPRNumber = "$backportPRNumber";
+                BackportHeadSHA = "$($response.head.sha)";
+                UseFork = "${{ inputs.use_fork }}" -eq "true";
+              }
+            )
+          } else {
+            foreach ($branch in $backportTargetBranch) {
+              $parameters.Add(
+                @{
+                  BackportRepoName = "$repoName";
+                  BackportRepoOrg = "$repoOwner";
+                  BackportTargetBranch = "$branch";
+                  BackportPRNumber = "$backportPRNumber";
+                  BackportHeadSHA = "$($response.head.sha)";
+                  UseFork = "${{ inputs.use_fork }}" -eq "true";
+                }
+              )
+            }
+          }
+
+          $parametersJson = $parameters | ConvertTo-Json -Compress
+
+          $json = $parametersJon.Replace("`"","'")
           Write-Host "Setting output variables"
           echo "::set-output name=parameters::$json"
           echo "::set-output name=pr_number::$backportPRNumber"
@@ -85,14 +108,21 @@ runs:
     - name: Launch ADO Build
       id: ado_build
       run: |
-        $message = ""
-        $statusCode = 0
-        try {
-          $launchURI = "https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_apis/pipelines/${{ inputs.backport_pipeline_id }}/runs?api-version=6.0-preview.1"
-          Write-Host "Grabbing parameters from prior step"
-          $parameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
-          Write-Host "$parameters"
-          $jsonBody = @{
+        # common stuff that is reused per call
+        Write-Host "Grabbing parameters from prior step"
+        $backportParameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
+        Write-Host "$backportParameters"
+
+        $launchURI = "https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_apis/pipelines/${{ inputs.backport_pipeline_id }}/runs?api-version=6.0-preview.1"
+        # create a scriptblock that will be called per branch created, makes it a lot simpler to read
+        $createBackport = {
+          param($parameters)
+
+          $message = ""
+          $statusCode = 0
+
+          try {
+            $jsonBody = @{
               previewRun = false;
               templateParameters = $parameters;
               resources = @{
@@ -101,33 +131,43 @@ runs:
                     refName = "refs/heads/yaml-pipeline"
                   }
                 }
-              };
+              }
             } | ConvertTo-Json -Depth 10
 
-          Write-Host "Posting to $launchURI"
-          Write-Host $jsonBody
-          $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${{ inputs.ado_build_pat }}"))
-          $headers = @{ Authorization = "Basic $encoded"}
+            Write-Host "Posting to $launchURI"
+            Write-Host $jsonBody
+            $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${{ inputs.ado_build_pat }}"))
+            $headers = @{ Authorization = "Basic $encoded"}
 
-          $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
-          echo "Job successfully launched"
-          $message = "Backport Job to branch **$($parameters.BackportTargetBranch)** Created! The magic is happening [here](https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_build/results?buildId=$($responseJson.id))"
-        } catch {
-          Write-Host $_.Exception.Message
-          $message = "I couldn't create a backport to **$($parameters.BackportTargetBranch)** for you. :( Please check the Action logs for more details."
-          $statusCode = 1
-        } finally {
-          $jsonBody = @{
-            body = $message
-          } | ConvertTo-Json
+            $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
+            echo "Job successfully launched"
+            $message = "Backport Job to branch **$($parameters.BackportTargetBranch)** Created! The magic is happening [here](https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_build/results?buildId=$($responseJson.id))"
+          } catch {
+            Write-Host $_.Exception.Message
+            $message = "I couldn't create a backport to **$($parameters.BackportTargetBranch)** for you. :( Please check the Action logs for more details."
+            $statusCode = 1
+          } finally {
+            $jsonBody = @{
+              body = $message
+            } | ConvertTo-Json
 
-          $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
-          $uri = "https://api.github.com/repos/${{ inputs.github_repository }}/issues/${{ steps.get_parameters.outputs.pr_number }}/comments"
+            $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
+            $uri = "https://api.github.com/repos/${{ inputs.github_repository }}/issues/${{ steps.get_parameters.outputs.pr_number }}/comments"
 
 
-          Write-Host "Posting to $uri"
-          Write-Host "$jsonBody"
-          Invoke-WebRequest -UseBasicParsing -Headers $headers -Method POST -Uri $uri -Body $jsonBody
+            Write-Host "Posting to $uri"
+            Write-Host "$jsonBody"
+            Invoke-WebRequest -UseBasicParsing -Headers $headers -Method POST -Uri $uri -Body $jsonBody
+          } # finally
+
+          return $statusCode
+        } # block
+
+        # a little ugly, but not terribly ugly, we are going add the status code per callback and use that as our return, if everything work, we always get 0 and we return 0, else we return the number of errors
+        $exitCode = 0
+        foreach ($p in $backportParameters) {
+          # what a great and nice way to cal a lambda, the & is a must or you wont do a thing, &$ is just nice syntax
+          $exitCode += &$createBackport($p)
         }
-        return $statusCode
+        return $exitCode
       shell: pwsh
