@@ -110,6 +110,7 @@ runs:
           $headers = @{ Authorization = "Basic $encoded"}
 
           $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
+          $responseJson = ConvertFrom-Json $response.Content
           echo "Job successfully launched"
           $message = "Backport Job to branch **$($parameters.BackportTargetBranch)** Created! The magic is happening [here](https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_build/results?buildId=$($responseJson.id))"
         } catch {
