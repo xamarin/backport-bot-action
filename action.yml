@@ -43,6 +43,12 @@ runs:
         $statusCode = 0
         $message = ""
         try {
+          Write-Host "Parsing ${{ inputs.comment_body }}"
+          if ("${{ inputs.comment_body }}" -match "@(?<botName>.+) backport (?<branchName>.+)") {
+            $botName = $Matches.botName;
+            $backportTargetBranch = $Matches.branchName;
+          }
+
           ($repoOwner, $repoName) = "${{ inputs.github_repository }}".Split("/")
           $headers = $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
           $uri = "https://api.github.com/repos/$repoOwner/$repoName/collaborators/${{ inputs.comment_author }}/permission"
@@ -54,9 +60,6 @@ runs:
           if (-not ($accessType.Equals("admin") -or $accessType.Equals("write"))) {
             throw "${{ inputs.comment_author }}/permission does not have sufficient permissions for ${{ inputs.github_repository }}"
           }
-
-          Write-Host "Parsing ${{ inputs.comment_body }}"
-          ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split("${{ inputs.comment_body }}", "\s+")
 
           Write-Host "Grabbing PR details from ${{ inputs.pull_request_url }}"
           $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
