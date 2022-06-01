@@ -40,7 +40,7 @@ runs:
     - name: Gather Parameters
       id: get_parameters
       env:
-        INPUTS_COMMENT_BODY: "${{ inputs.comment_body }}"
+        INPUTS_COMMENT_BODY: ${{ inputs.comment_body }}
       run: |
         $statusCode = 0
         $message = ""
@@ -58,7 +58,7 @@ runs:
           }
 
           Write-Host "Parsing $INPUTS_COMMENT_BODY"
-          ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split("$($INPUTS_COMMENT_BODY)", "\s+")
+          ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split("$INPUTS_COMMENT_BODY", "\s+")
 
           Write-Host "Grabbing PR details from ${{ inputs.pull_request_url }}"
           $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
