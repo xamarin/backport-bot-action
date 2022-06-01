@@ -39,7 +39,7 @@ runs:
   steps:
     - name: Gather Parameters
       environment:
-        COMMENT_BODY: ${{ inputs.comment_body }}
+        COMMENT: ${{ inputs.comment_body }}
       id: get_parameters
       run: |
         $statusCode = 0
@@ -57,8 +57,8 @@ runs:
             throw "${{ inputs.comment_author }}/permission does not have sufficient permissions for ${{ inputs.github_repository }}"
           }
 
-          Write-Host "Parsing $COMMENT_BODY"
-          ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split("$COMMENT_BODY", "\s+")
+          Write-Host "Parsing $COMMENT"
+          ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split("$COMMENT", "\s+")
 
           Write-Host "Grabbing PR details from ${{ inputs.pull_request_url }}"
           $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
