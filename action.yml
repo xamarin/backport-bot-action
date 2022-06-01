@@ -38,7 +38,7 @@ runs:
   using: "composite"
   steps:
     - name: Gather Parameters
-      env:
+      environment:
         COMMENT_BODY: ${{ inputs.comment_body }}
       id: get_parameters
       run: |
