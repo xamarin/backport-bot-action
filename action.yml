@@ -34,13 +34,12 @@ inputs:
     required: false
     default: 'false'
 
-env:
-  COMMENT_BODY: ${{ inputs.comment_body }}
-
 runs:
   using: "composite"
   steps:
     - name: Gather Parameters
+      env:
+        COMMENT_BODY: ${{ inputs.comment_body }}
       id: get_parameters
       run: |
         $statusCode = 0
