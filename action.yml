@@ -39,8 +39,6 @@ runs:
   steps:
     - name: Gather Parameters
       id: get_parameters
-      env:
-        COMMENT_BODY: ${{ inputs.comment_body }}
       run: |
         $statusCode = 0
         $message = ""
@@ -83,6 +81,8 @@ runs:
         }
         return $statusCode
       shell: pwsh
+      env:
+        COMMENT_BODY: ${{ inputs.comment_body }}
 
     - name: Launch ADO Build
       id: ado_build
