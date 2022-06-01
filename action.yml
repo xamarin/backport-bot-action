@@ -34,6 +34,9 @@ inputs:
     required: false
     default: 'false'
 
+env:
+  COMMENT_BODY: ${{ inputs.comment_body }}
+
 runs:
   using: "composite"
   steps:
@@ -81,8 +84,6 @@ runs:
         }
         return $statusCode
       shell: pwsh
-      env:
-        COMMENT_BODY: ${{ inputs.comment_body }}
 
     - name: Launch ADO Build
       id: ado_build
