@@ -44,9 +44,11 @@ runs:
         $message = ""
         try {
           Write-Host "Parsing ${{ inputs.comment_body }}"
-          if ("${{ inputs.comment_body }}" -match "@(?<botName>.+) backport (?<branchName>.+)") {
+          if ("${{ inputs.comment_body }}" -match "@(?<botName>.+) backport (?<branchName>(`".+`")|([^\s]+))$") {
             $botName = $Matches.botName;
-            $backportTargetBranch = $Matches.branchName;
+            $backportTargetBranch = $Matches.branchName.TrimStart("`"").TrimEnd("`"")
+          } else {
+            throw "Could not parse comment body: ${{ inputs.comment_body }}"
           }
 
           ($repoOwner, $repoName) = "${{ inputs.github_repository }}".Split("/")
