@@ -54,7 +54,7 @@ jobs:
           $message = ""
           try {
             ($repoOwner, $repoName) = "${{ inputs.github_repository }}".Split("/")
-            $headers = $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
+            $headers = $headers = @{ Authorization = "token ${{ secrets.github_account_pat }}"}
             $uri = "https://api.github.com/repos/$repoOwner/$repoName/collaborators/${{ inputs.comment_author }}/permission"
             Write-Host "Checking $repoOwner membership for ${{ inputs.comment_author }} via $uri"
             $response = Invoke-WebRequest -Headers $headers -Uri $uri
@@ -114,7 +114,7 @@ jobs:
 
             Write-Host "Posting to $launchURI"
             Write-Host $jsonBody
-            $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${{ inputs.ado_build_pat }}"))
+            $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${{ secrets.ado_build_pat }}"))
             $headers = @{ Authorization = "Basic $encoded"}
 
             $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
@@ -130,7 +130,7 @@ jobs:
               body = $message
             } | ConvertTo-Json
 
-            $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
+            $headers = @{ Authorization = "token ${{ secrets.github_account_pat }}"}
             $uri = "https://api.github.com/repos/${{ inputs.github_repository }}/issues/${{ steps.get_parameters.outputs.pr_number }}/comments"
 
 
