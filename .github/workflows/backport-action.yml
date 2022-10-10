@@ -19,24 +19,21 @@ on:
         description: GitHub Repository where the comment was written
         type: string
         required: true
-      ado_organization:
-        description: Azure DevOps organization that hosts the backport job
-        type: string
-        required: true
-      ado_project:
-        description: Azure DevOps project that hosts the backport job
-        type: string
-        required: true
-      backport_pipeline_id:
-        description: ID of the backport yaml pipeline in Azure DevOps
-        type: string
-        required: true
       use_fork:
         description: The action should create a PR from a fork
         type: boolean
         required: false
         default: false
     secrets:
+      ado_organization:
+        description: Azure DevOps organization that hosts the backport job
+        required: true
+      ado_project:
+        description: Azure DevOps project that hosts the backport job
+        required: true
+      backport_pipeline_id:
+        description: ID of the backport yaml pipeline in Azure DevOps
+        required: true
       ado_build_pat:
         description: PAT of an account that can launch builds on the backport pipeline in Azure DevOps
         required: true
@@ -99,7 +96,7 @@ jobs:
           $message = ""
           $statusCode = 0
           try {
-            $launchURI = "https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_apis/pipelines/${{ inputs.backport_pipeline_id }}/runs?api-version=6.0-preview.1"
+            $launchURI = "https://dev.azure.com/${{ secrets.ado_organization }}/${{ secrets.ado_project }}/_apis/pipelines/${{ secrets.backport_pipeline_id }}/runs?api-version=6.0-preview.1"
             Write-Host "Grabbing parameters from prior step"
             $parameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
             Write-Host "$parameters"
@@ -123,7 +120,7 @@ jobs:
             $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
             $responseJson = ConvertFrom-Json $response.Content
             echo "Job successfully launched"
-            $message = "Backport Job to branch **$($parameters.BackportTargetBranch)** Created! The magic is happening [here](https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_build/results?buildId=$($responseJson.id))"
+            $message = "Backport Job to branch **$($parameters.BackportTargetBranch)** Created! The magic is happening [here](https://dev.azure.com/${{ secrets.ado_organization }}/${{ secrets.ado_project }}/_build/results?buildId=$($responseJson.id))"
           } catch {
             Write-Host $_.Exception.Message
             $message = "I couldn't create a backport to **$($parameters.BackportTargetBranch)** for you. :( Please check the Action logs for more details."
