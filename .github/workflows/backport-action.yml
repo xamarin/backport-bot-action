@@ -46,8 +46,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Gather Parameters
-        env:
-          COMMENT: ${{ inputs.comment_body }}
         id: get_parameters
         run: |
           $statusCode = 0
@@ -91,6 +89,8 @@ jobs:
           }
           return $statusCode
         shell: pwsh
+        env:
+          COMMENT: ${{ inputs.comment_body }}
 
       - run: |
           $message = ""
