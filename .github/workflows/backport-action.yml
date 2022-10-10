@@ -44,10 +44,10 @@ on:
 jobs:
   launch_ado_build:
     runs-on: ubuntu-latest
-    env:
-      COMMENT: ${{ inputs.comment_body }}
     steps:
       - name: Gather Parameters
+        env:
+          COMMENT: ${{ inputs.comment_body }}
         id: get_parameters
         run: |
           $statusCode = 0
