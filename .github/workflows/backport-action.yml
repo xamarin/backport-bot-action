@@ -7,12 +7,12 @@ on:
         description: URL of the pull request from the issue comment event
         type: string
         required: true
-      comment_author:
-        description: Author of the PR comment
+      target_branch:
+        description: Branch to backport the changes
         type: string
         required: true
-      comment_body:
-        description: Message of the comment on a PR
+      comment_author:
+        description: Author of the PR comment
         type: string
         required: true
       github_repository:
@@ -63,9 +63,6 @@ jobs:
               throw "${{ inputs.comment_author }}/permission does not have sufficient permissions for ${{ inputs.github_repository }}"
             }
 
-            Write-Host "Parsing $env:COMMENT"
-            ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split("$env:COMMENT", "\s+")
-
             Write-Host "Grabbing PR details from ${{ inputs.pull_request_url }}"
             $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
             $backportPRNumber = $response.number
@@ -73,7 +70,7 @@ jobs:
             $parameters = @{
               BackportRepoName = "$repoName";
               BackportRepoOrg = "$repoOwner";
-              BackportTargetBranch = "$backportTargetBranch";
+              BackportTargetBranch = "${{ inputs.target_branch }}";
               BackportPRNumber = "$backportPRNumber";
               BackportHeadSHA = "$($response.head.sha)";
               UseFork = "${{ inputs.use_fork }}" -eq "true";
@@ -89,8 +86,6 @@ jobs:
           }
           return $statusCode
         shell: pwsh
-        env:
-          COMMENT: ${{ inputs.comment_body }}
 
       - run: |
           $message = ""
