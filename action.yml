@@ -34,6 +34,8 @@ inputs:
     required: false
     default: 'false'
 env:
+  # Protect against script injection attacks via input variables (i.e., the content of the variables could be executed at the time of evaluation/expansion within a script)
+  # Scripts must consume the environment variable settings instead
   GITHUB_REPOSITORY: "${{ inputs.github_repository }}"
   GITHUB_ACCOUNT_PAT: "${{ inputs.github_account_pat }}"
   COMMENT_AUTHOR: "${{ inputs.comment_author }}"
