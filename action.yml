@@ -33,6 +33,17 @@ inputs:
     description: The action should create a PR from a fork
     required: false
     default: 'false'
+env:
+  GITHUB_REPOSITORY: "${{ inputs.github_repository }}"
+  GITHUB_ACCOUNT_PAT: "${{ inputs.github_account_pat }}"
+  COMMENT_AUTHOR: "${{ inputs.comment_author }}"
+  COMMENT_BODY: "${{ inputs.comment_body }}"
+  PULL_REQUEST_URL: "${{ inputs.pull_request_url }}"
+  USE_FORK: "${{ inputs.use_fork }}"
+  ADO_ORGANIZATION: "${{ inputs.ado_organization }}"
+  ADO_PROJECT: "${{ inputs.ado_project }}"
+  ADO_PIPELINE_ID: "${{ inputs.backport_pipeline_id }}"
+  ADO_BUILD_PAT: "${{ inputs.ado_build_pat }}"
 
 runs:
   using: "composite"
@@ -43,23 +54,30 @@ runs:
         $statusCode = 0
         $message = ""
         try {
-          ($repoOwner, $repoName) = "${{ inputs.github_repository }}".Split("/")
-          $headers = $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
-          $uri = "https://api.github.com/repos/$repoOwner/$repoName/collaborators/${{ inputs.comment_author }}/permission"
-          Write-Host "Checking $repoOwner membership for ${{ inputs.comment_author }} via $uri"
+          $gitHubRepository = $env:GITHUB_REPOSITORY
+          $gitHubAccountPAT = $env:GITHUB_ACCOUNT_PAT
+          $commentAuthor = $env:COMMENT_AUTHOR
+          $pullRequestUrl = $env:PULL_REQUEST_URL
+          $useFork = $env:USE_FORK
+
+          ($repoOwner, $repoName) = $gitHubRepository.Split("/")
+          $headers = $headers = @{ Authorization = "token ${gitHubAccountPAT}"}
+          $uri = "https://api.github.com/repos/${repoOwner}/${repoName}/collaborators/${commentAuthor}/permission"
+          Write-Host "Checking ${repoOwner} membership for ${commentAuthor} via $uri"
           $response = Invoke-WebRequest -Headers $headers -Uri $uri
           $content = $response.Content | ConvertFrom-Json
           $accessType = $content.permission
           Write-Host "Found membership: $accessType"
           if (-not ($accessType.Equals("admin") -or $accessType.Equals("write"))) {
-            throw "${{ inputs.comment_author }}/permission does not have sufficient permissions for ${{ inputs.github_repository }}"
+            throw "${commentAuthor}/permission does not have sufficient permissions for ${gitHubRepository}"
           }
 
-          Write-Host "Parsing ${{ inputs.comment_body }}"
-          ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split("${{ inputs.comment_body }}", "\s+")
+          $commentBody = $env:COMMENT_BODY
+          Write-Host "Parsing ${commentBody}"
+          ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split($commentBody, "\s+")
 
-          Write-Host "Grabbing PR details from ${{ inputs.pull_request_url }}"
-          $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
+          Write-Host "Grabbing PR details from ${pullRequestUrl}"
+          $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${pullRequestUrl}" | ConvertFrom-Json
           $backportPRNumber = $response.number
 
           $parameters = @{
@@ -68,7 +86,7 @@ runs:
             BackportTargetBranch = "$backportTargetBranch";
             BackportPRNumber = "$backportPRNumber";
             BackportHeadSHA = "$($response.head.sha)";
-            UseFork = "${{ inputs.use_fork }}" -eq "true";
+            UseFork = $useFork -eq "true";
           } | ConvertTo-Json -Compress
 
           $json = $parameters.Replace("`"","'")
@@ -85,10 +103,17 @@ runs:
     - name: Launch ADO Build
       id: ado_build
       run: |
+        $adoOrganization = $env:ADO_ORGANIZATION
+        $adoProject = $env:ADO_PROJECT
+        $adoPipelineId = $env:ADO_PIPELINE_ID
+        $adoBuildPAT = $env:ADO_BUILD_PAT
+        $gitHubRepository = $env:GITHUB_REPOSITORY
+        $gitHubAccountPAT = $env:GITHUB_ACCOUNT_PAT
+
         $message = ""
         $statusCode = 0
         try {
-          $launchURI = "https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_apis/pipelines/${{ inputs.backport_pipeline_id }}/runs?api-version=6.0-preview.1"
+          $launchURI = "https://dev.azure.com/${adoOrganization}/${adoProject}/_apis/pipelines/${adoPipelineId}/runs?api-version=6.0-preview.1"
           Write-Host "Grabbing parameters from prior step"
           $parameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
           Write-Host "$parameters"
@@ -106,13 +131,13 @@ runs:
 
           Write-Host "Posting to $launchURI"
           Write-Host $jsonBody
-          $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${{ inputs.ado_build_pat }}"))
+          $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoBuildPAT}"))
           $headers = @{ Authorization = "Basic $encoded"}
 
           $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
           $responseJson = ConvertFrom-Json $response.Content
           echo "Job successfully launched"
-          $message = "Backport Job to branch **$($parameters.BackportTargetBranch)** Created! The magic is happening [here](https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_build/results?buildId=$($responseJson.id))"
+          $message = "Backport Job to branch **$($parameters.BackportTargetBranch)** Created! The magic is happening [here](https://dev.azure.com/${adoOrganization}/${adoProject}/_build/results?buildId=$($responseJson.id))"
         } catch {
           Write-Host $_.Exception.Message
           $message = "I couldn't create a backport to **$($parameters.BackportTargetBranch)** for you. :( Please check the Action logs for more details."
@@ -122,8 +147,8 @@ runs:
             body = $message
           } | ConvertTo-Json
 
-          $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
-          $uri = "https://api.github.com/repos/${{ inputs.github_repository }}/issues/${{ steps.get_parameters.outputs.pr_number }}/comments"
+          $headers = @{ Authorization = "token ${gitHubAccountPAT}"}
+          $uri = "https://api.github.com/repos/${gitHubRepository}/issues/${{ steps.get_parameters.outputs.pr_number }}/comments"
 
 
           Write-Host "Posting to $uri"
