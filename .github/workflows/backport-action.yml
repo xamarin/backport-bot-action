@@ -50,6 +50,7 @@ jobs:
       GITHUB_ACCOUNT_PAT: "${{ secrets.github_account_pat }}"
       COMMENT_AUTHOR: "${{ inputs.comment_author }}"
       PULL_REQUEST_URL: "${{ inputs.pull_request_url }}"
+      TARGET_BRANCH: "${{ inputs.target_branch }}"
       USE_FORK: "${{ inputs.use_fork }}"
       ADO_ORGANIZATION: "${{ secrets.ado_organization }}"
       ADO_PROJECT: "${{ secrets.ado_project }}"
@@ -66,11 +67,13 @@ jobs:
             $gitHubAccountPAT = $env:GITHUB_ACCOUNT_PAT
             $commentAuthor = $env:COMMENT_AUTHOR
             $pullRequestUrl = $env:PULL_REQUEST_URL
+            $backportTargetBranch = $env:TARGET_BRANCH
             $useFork = $env:USE_FORK
 
             Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
             Write-Host "COMMENT_AUTHOR: ${commentAuthor}"
             Write-Host "PULL_REQUEST_URL: ${pullRequestUrl}"
+            Write-Host "TARGET_BRANCH: ${backportTargetBranch}"
             Write-Host "USE_FORK: ${useFork}"
 
             ($repoOwner, $repoName) = $gitHubRepository.Split("/")
