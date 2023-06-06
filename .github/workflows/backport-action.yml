@@ -40,23 +40,21 @@ on:
       github_account_pat:
         description: PAT for a github account that has write access to source repository
         required: true
+jobs:
+  launch_ado_build:
+    runs-on: ubuntu-latest
     env:
       # Protect against script injection attacks via input variables (i.e., the content of the variables could be executed at the time of evaluation/expansion within a script)
       # Scripts must consume the environment variable settings instead
       GITHUB_REPOSITORY: "${{ inputs.github_repository }}"
       GITHUB_ACCOUNT_PAT: "${{ inputs.github_account_pat }}"
       COMMENT_AUTHOR: "${{ inputs.comment_author }}"
-      COMMENT_BODY: "${{ inputs.comment_body }}"
       PULL_REQUEST_URL: "${{ inputs.pull_request_url }}"
       USE_FORK: "${{ inputs.use_fork }}"
       ADO_ORGANIZATION: "${{ inputs.ado_organization }}"
       ADO_PROJECT: "${{ inputs.ado_project }}"
       ADO_PIPELINE_ID: "${{ inputs.backport_pipeline_id }}"
       ADO_BUILD_PAT: "${{ inputs.ado_build_pat }}"
-
-jobs:
-  launch_ado_build:
-    runs-on: ubuntu-latest
     steps:
       - name: Gather Parameters
         id: get_parameters
@@ -86,14 +84,6 @@ jobs:
             if (-not ($accessType.Equals("admin") -or $accessType.Equals("write"))) {
               throw "${commentAuthor}/permission does not have sufficient permissions for ${gitHubRepository}"
             }
-
-            $commentBody = $env:COMMENT_BODY
-            Write-Host "----------------------------------------------------------------------------------------------------"
-            Write-Host "COMMENT_BODY"
-            Write-Host "----------------------------------------------------------------------------------------------------"
-            Write-Host $commentBody
-
-            ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split($commentBody, "\s+")
 
             Write-Host "Grabbing PR details from ${pullRequestUrl}"
             $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${pullRequestUrl}" | ConvertFrom-Json
