@@ -98,7 +98,7 @@ runs:
               resources = @{
                 repositories = @{
                   self = @{
-                    refName = "refs/heads/dev/cadsit/backport-bot"
+                    refName = "refs/heads/main"
                   }
                 }
               };
