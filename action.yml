@@ -1,6 +1,5 @@
 name: Backport Pull Request from Comment
 description: Launches a Backport Job from a GitHub Comment on an Issue
-author: Connor Adsit <cadsit@microsoft.com>
 inputs:
   pull_request_url:
     description: URL of the pull request from the issue comment event
