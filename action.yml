@@ -63,6 +63,11 @@ runs:
           $pullRequestUrl = $env:PULL_REQUEST_URL
           $useFork = $env:USE_FORK
 
+          Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
+          Write-Host "COMMENT_AUTHOR: ${commentAuthor}"
+          Write-Host "PULL_REQUEST_URL: ${pullRequestUrl}"
+          Write-Host "USE_FORK: ${useFork}"
+
           ($repoOwner, $repoName) = $gitHubRepository.Split("/")
           $headers = $headers = @{ Authorization = "token ${gitHubAccountPAT}"}
           $uri = "https://api.github.com/repos/${repoOwner}/${repoName}/collaborators/${commentAuthor}/permission"
@@ -76,7 +81,11 @@ runs:
           }
 
           $commentBody = $env:COMMENT_BODY
-          Write-Host "Parsing ${commentBody}"
+          Write-Host "--------------------------------------------------------------------------------"
+          Write-Host "COMMENT_BODY"
+          Write-Host "--------------------------------------------------------------------------------"
+          Write-Host $commentBody
+
           ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split($commentBody, "\s+")
 
           Write-Host "Grabbing PR details from ${pullRequestUrl}"
@@ -112,6 +121,11 @@ runs:
         $adoBuildPAT = $env:ADO_BUILD_PAT
         $gitHubRepository = $env:GITHUB_REPOSITORY
         $gitHubAccountPAT = $env:GITHUB_ACCOUNT_PAT
+
+        Write-Host "ADO_ORGANIZATION: ${adoOrganization}"
+        Write-Host "ADO_PROJECT: ${adoProject}"
+        Write-Host "ADO_PIPELINE_ID: ${adoPipelineId}"
+        Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
 
         $message = ""
         $statusCode = 0
