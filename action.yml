@@ -32,22 +32,24 @@ inputs:
     description: The action should create a PR from a fork
     required: false
     default: 'false'
-env:
-  # Protect against script injection attacks via input variables (i.e., the content of the variables could be executed at the time of evaluation/expansion within a script)
-  # Scripts must consume the environment variable settings instead
-  GITHUB_REPOSITORY: "${{ inputs.github_repository }}"
-  GITHUB_ACCOUNT_PAT: "${{ inputs.github_account_pat }}"
-  COMMENT_AUTHOR: "${{ inputs.comment_author }}"
-  COMMENT_BODY: "${{ inputs.comment_body }}"
-  PULL_REQUEST_URL: "${{ inputs.pull_request_url }}"
-  USE_FORK: "${{ inputs.use_fork }}"
-  ADO_ORGANIZATION: "${{ inputs.ado_organization }}"
-  ADO_PROJECT: "${{ inputs.ado_project }}"
-  ADO_PIPELINE_ID: "${{ inputs.backport_pipeline_id }}"
-  ADO_BUILD_PAT: "${{ inputs.ado_build_pat }}"
 
+# https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions#runs
 runs:
   using: "composite"
+  # https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions#runsenv
+  env:
+    # Protect against script injection attacks via input variables (i.e., the content of the variables could be executed at the time of evaluation/expansion within a script)
+    # Scripts must consume the environment variable settings instead
+    GITHUB_REPOSITORY: "${{ inputs.github_repository }}"
+    GITHUB_ACCOUNT_PAT: "${{ inputs.github_account_pat }}"
+    COMMENT_AUTHOR: "${{ inputs.comment_author }}"
+    COMMENT_BODY: "${{ inputs.comment_body }}"
+    PULL_REQUEST_URL: "${{ inputs.pull_request_url }}"
+    USE_FORK: "${{ inputs.use_fork }}"
+    ADO_ORGANIZATION: "${{ inputs.ado_organization }}"
+    ADO_PROJECT: "${{ inputs.ado_project }}"
+    ADO_PIPELINE_ID: "${{ inputs.backport_pipeline_id }}"
+    ADO_BUILD_PAT: "${{ inputs.ado_build_pat }}"
   steps:
     - name: Gather Parameters
       id: get_parameters
