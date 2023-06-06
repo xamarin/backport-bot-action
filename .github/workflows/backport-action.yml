@@ -1,5 +1,4 @@
-name: Backport Pull Request from Comment
-description: Launches a Backport Job from a GitHub Comment on an Issue
+name: Launch Backport Job
 on:
   workflow_call:
     inputs:
