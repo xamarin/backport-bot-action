@@ -23,7 +23,7 @@ git tag -f v1.0-test
 git push --tags --force
 ```
 
-To excercise your changes associated with the `v1.0-test` tag, use the following test PR
+To exercise your changes associated with the `v1.0-test` tag, use the following test PR
 https://github.com/xamarin/backport-bot-action/pull/11
 
 Apply the following comment to the PR
@@ -53,7 +53,7 @@ Please note that for updating the `v1.1` tag (or any other tag you want to push 
 
 In order to pick up the changes for Staging, make sure that the backport trigger YAML in your target repo (usually found at https://github.com/xamarin/$REPO_NAME/blob/main/.github/workflows/backport-trigger.yml) points to your desired tag.
 
-For example, https://github.com/xamarin/.github/blob/main/.github/workflows/backport-trigger.yml#L13, the uses line should be updated as follows:
+For example, https://github.com/xamarin/.github/blob/main/.github/workflows/backport-trigger.yml#L13, the `uses` line should be updated as follows:
 ```yaml
       - uses: xamarin/backport-bot-action@$TAG_NAME
 ```
@@ -63,4 +63,10 @@ You can list tags by executing the following command
 
 ```
 git tag
+```
+
+To view the contents of a tag execute the following command:
+
+```
+git show $TAG_NAME
 ```

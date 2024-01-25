@@ -42,6 +42,13 @@ on:
 jobs:
   launch_ado_build:
     runs-on: ubuntu-latest
+    # GITHUB_TOKEN change from read-write to read-only on 2024-02-01 requiring permissions block
+    # https://docs.opensource.microsoft.com/github/apps/permission-changes/
+    # https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
     env:
       # Protect against script injection attacks via input variables (i.e., the content of the variables could be executed at the time of evaluation/expansion within a script)
       # Scripts must consume the environment variable settings instead
