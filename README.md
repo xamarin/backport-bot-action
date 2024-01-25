@@ -64,3 +64,9 @@ You can list tags by executing the following command
 ```
 git tag
 ```
+
+To view the contents of a tag execute the following command:
+
+```
+git show $TAG_NAME
+```
