@@ -1,0 +1,273 @@
+trigger: none
+
+parameters:
+  - name: BackportRepoName
+    displayName: Backport Repository Name
+    type: string
+  - name: BackportRepoOrg
+    displayName: Backport Repository Organization
+    type: string
+  - name: BackportTargetBranch
+    displayName: Backport Target Branch
+    type: string
+  - name: BackportPRNumber
+    displayName: Backport Pull Request Number
+    type: number
+  - name: BackportHeadSHA
+    displayName: Tip of the source PR
+    type: string
+  - name: UseFork
+    displayName: Use a fork to create PRs
+    type: boolean
+    default: false
+
+variables:
+  - name: GitHubEndpoint
+    value: ${{ parameters.BackportRepoOrg }}
+  - name: SourceRepo
+    value: ${{ parameters.BackportRepoOrg }}/${{ parameters.BackportRepoName }}
+  - name: TargetBranch
+    value: ${{ parameters.BackportTargetBranch }}
+  - name: SourceBranch
+    value: "backport-pr-${{ parameters.BackportPRNumber }}-to-$(TargetBranch)"
+  - group: Xamarin-Secrets
+  - name: GitHubApiPrUri
+    value: "https://api.github.com/repos/$(SourceRepo)/pulls/${{ parameters.BackportPRNumber }}"
+
+resources:
+  repositories:
+    - repository: backportRepo
+      type: github
+      # TODO: is there a way to not hardcode the endpoint?
+      endpoint: xamarin
+      name: $(SourceRepo)
+      ref: $(TargetBranch)
+
+jobs:
+  - job: BackportBot
+    pool:
+      vmImage: ubuntu-latest
+
+    variables:
+      - name: ChangesPatch
+        value: $(Build.ArtifactStagingDirectory)/changes.patch
+      - name: WorkingDir
+        value: $(Build.SourcesDirectory)/${{ parameters.BackportRepoName }}
+
+    steps:
+    - checkout: self
+    - checkout: backportRepo
+      persistCredentials: true
+
+    - powershell: |
+        Write-Host "BackportRepoName: ${{ parameters.BackportRepoName }}"
+        Write-Host "BackportRepoOrg: ${{ parameters.BackportRepoOrg }}"
+        Write-Host "BackportTargetBranch: ${{ parameters.BackportTargetBranch }}"
+        Write-Host "BackportPRNumber: ${{ parameters.BackportPRNumber }}"
+        Write-Host "BackportHeadSHA: ${{ parameters.BackportHeadSHA }}"
+        Write-Host "UseFork: ${{ parameters.UseFork}}"
+      displayName: Debug parameters
+
+    # TODO: redundant, but echo git version
+    - powershell: |
+        git --version
+        git status > $(Build.ArtifactStagingDirectory)/git_status.txt
+        Get-Content $(Build.ArtifactStagingDirectory)/git_status.txt
+        git diff > $(Build.ArtifactStagingDirectory)/git_diff.txt
+        git checkout -b $(SourceBranch)
+      workingDirectory: $(WorkingDir)
+      displayName: Checkout Backport Branch
+
+    - powershell: |
+        $headers = @{ Authorization = "token $(github--pat--vs-mobiletools-engineering-service2)"; Accept = "application/vnd.github.v3.patch" }
+        Write-Host "Grabbing PR Patch from ${{ variables.GitHubApiPrUri }}"
+        Invoke-Webrequest -UseBasicParsing -OutFile $(ChangesPatch) -Headers $headers -Uri "${{ variables.GitHubApiPrUri }}"
+      displayName: Grab Patch File
+
+    # TODO: try and grab PR author
+    - powershell: |
+        git config --global credential.helper store
+        Set-Content -Path "$HOME\.git-credentials" -Value "https://$(github--pat--vs-mobiletools-engineering-service2):x-oauth-basic@github.com`n" -NoNewline
+        git config user.email "valco@microsoft.com"
+        git config user.name "vs-mobiletools-engineering-service2"
+        Write-Host "git am $(ChangesPatch) --3way --ignore-whitespace --keep-non-patch --exclude=`"external/api-snapshot`""
+        git am $(ChangesPatch) --3way --ignore-whitespace --keep-non-patch --exclude="external/api-snapshot" > $(Build.ArtifactStagingDirectory)/am_output.txt 2>&1
+        $result = $(git status)
+        if ($result.Contains("You are in the middle of an am session")) {
+          throw "Merge conflict. Please backport manually"
+        }
+      workingDirectory: $(WorkingDir)
+      displayName: Apply Patch
+
+    # - powershell: |
+    #     Write-Host "git filter-branch --prune-empty -f $(SourceRef)..HEAD"
+    #     git filter-branch --prune-empty -f $(SourceRef)..HEAD > $(Build.ArtifactStagingDirectory)/filter_status.txt 2>&1
+    #   workingDirectory: $(WorkingDir)
+    #   displayName: Filter Branch
+
+    # try to retrieve the repo for the bot, if not present, create it
+    - powershell: |
+        $headers = @{ Authorization = "token $(github--pat--vs-mobiletools-engineering-service2)"; Accept = "application/vnd.github.v3.patch" }
+        try {
+          $response = Invoke-Webrequest -UseBasicParsing -Headers $headers -Uri "https://api.github.com/repos/vs-mobiletools-engineering-service2/$Env:RepoName" | ConvertFrom-Json
+        } catch {
+          Write-Host "Fork was not found, creating one."
+          # fork does not exist and has to be created, this is async, we are going to wait some time and then retry until we get that the fork was indeed created. 
+          $payload= @{
+            owner = "vs-mobiletools-engineering-service2"
+            repo = $Env:RepoName
+          }
+          try {
+            $reposUri = "https://api.github.com/repos/$Env:RepoOrg/$Env:RepoName/forks"
+            Write-Host "Creating fork via $reposUri and $($payload | ConvertTo-json )"
+            $response = Invoke-Webrequest -Method POST -UseBasicParsing -Headers $headers -Uri $reposUri -Body ($payload | ConvertTo-json)
+            Write-Host "Response was $response"
+            $count = 0
+            #give some time
+            Start-Sleep -Seconds 5
+            do {
+              try {
+                # if we do not have the fork just yet, an exception is thrown, we wait and try again
+                $response = Invoke-Webrequest -UseBasicParsing -Headers $headers -Uri "https://api.github.com/repos/vs-mobiletools-engineering-service2/$Env:RepoName" | ConvertFrom-Json
+                break
+              } catch {
+                if ($count -gt 10) {
+                  # notify and throw
+                  Write-Host "Could not access fork vs-mobiletools-engineering-service2/$Env:RepoName after 10 attempts."
+                  throw $_.Exception
+                } else {
+                    $count = $count + 1
+                    $seconds = 5 * $count
+                    Write-Host "Error performing request trying in $seconds seconds"
+                    Start-Sleep -Seconds $seconds
+                }
+              }
+            } while ($true)
+          } catch {
+            Write-Host "Could not create fork vs-mobiletools-engineering-service2/$Env:RepoName."
+            throw $_.Exception
+          }
+        }
+        Write-Host "Adding remote to local git."
+        # add remote so that we do push there
+        $remoteUrl = "https://github.com/vs-mobiletools-engineering-service2/" + $Env:RepoName + ".git"
+        Write-Host "Using remote at '$remoteUrl'" 
+        git remote add vs-mobiletools-engineering-service2 $remoteUrl
+        git remote -v
+      workingDirectory: $(WorkingDir)
+      displayName: Create fork
+      condition: ${{ parameters.UseFork }}
+      env:
+        RepoName: ${{ parameters.BackportRepoName }}
+        RepoOrg: ${{ parameters.BackportRepoOrg }}
+
+    - powershell: |
+        git push -f -u vs-mobiletools-engineering-service2 HEAD:$(SourceBranch)
+      workingDirectory: $(WorkingDir)
+      displayName: Push Branch to Fork
+      condition: ${{ parameters.UseFork }}
+
+    - powershell: |
+        git push -f -u origin HEAD:$(SourceBranch)
+      workingDirectory: $(WorkingDir)
+      displayName: Push Branch
+      condition: not(${{ parameters.UseFork }})
+
+    # Grab PR details and
+    - powershell: |
+        Write-Host "Grabbing PR details from ${{ variables.GitHubApiPrUri }}"
+        $headers = @{ Authorization = "token $(github--pat--vs-mobiletools-engineering-service2)"; Accept = "application/json" }
+        $response = Invoke-WebRequest -Headers $headers -uri "${{ variables.GitHubApiPrUri }}"
+        $content = $response.Content | ConvertFrom-Json
+        $title = "[$(TargetBranch)] $($content.title)" -replace '[\u00A0]', ' '
+
+        # pws + json does not like /n but append line works
+        $msg = [System.Text.StringBuilder]::new()
+        $msg.AppendLine("$($content.body)")
+        $msg.AppendLine()
+        $msg.AppendLine()
+        $msg.AppendLine("Backport of #${{ parameters.BackportPRNumber }}")
+
+        Write-Host "Use Fork? $Env:UseFork"
+        $head = "$(SourceBranch)"
+        if ("$Env:UseFork".ToLower() -eq "true") {
+          $head = "vs-mobiletools-engineering-service2:$(SourceBranch)"
+        }
+
+        $payload=@{
+          title = $title
+          body = $msg.ToString()
+          head = "$head"
+          base = "$(TargetBranch)"
+          maintainer_can_modify = $true
+        }
+
+        $headers = @{ Authorization = "token $(github--pat--vs-mobiletools-engineering-service2)" }
+
+        # let it throw
+        $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri "https://api.github.com/repos/$(SourceRepo)/pulls" -Body ($payload | ConvertTo-json)
+        $newPr =  $response.Content | ConvertFrom-Json
+
+        Write-Host "Response is $newPr"
+        # add labels to the new created PR
+        [System.Collections.Generic.List[string]]$labels= @()
+        $labels.Add("backported")
+
+        # get the labels from the old PR which are stored in $content
+        foreach ($labelInfo in $content.labels) {
+          $labelName = $labelInfo.name
+          Write-Host "Found label $labelName"
+          $labels.Add($labelName)
+        } 
+        $payload=@{
+          labels = $labels
+        }
+        Write-Host "https://api.github.com/repos/(SourceRepo)/issues/$($response.number)/labels"
+        $response = Invoke-WebRequest -UseBasicParsing -Method PUT -Headers $headers -Uri "https://api.github.com/repos/$(SourceRepo)/issues/$($newPr.number)/labels" -Body ($payload | ConvertTo-json)
+      displayName: Open Pull Request
+      env:
+        UseFork: ${{ parameters.UseFork }}
+        BackportRepoOrg: ${{ parameters.BackportRepoOrg }}
+        BackportRepoName: ${{ parameters.BackportRepoName }}
+
+    - publish: $(Build.ArtifactStagingDirectory)
+      artifact: patch
+      condition: always()
+
+    - powershell: |
+        if ("$(Agent.JobStatus)".Equals("Succeeded")) {
+          $state = "success"
+          $desc = "succeeded"
+          $message = "Hooray"
+        } else {
+          $state = "failure"
+          $desc = "failed"
+          $message = "Oh no"
+        }
+
+        $buildUri = "$(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
+
+        $statusJson = @{
+          state = $state;
+          description = "Backport $desc`.";
+          target_url = $buildUri;
+          context = "Backport to $(TargetBranch)"
+        } | ConvertTo-Json
+
+        $uri = "https://api.github.com/repos/${{ parameters.BackportRepoOrg }}/${{ parameters.BackportRepoName }}/statuses/${{ parameters.BackportHeadSHA }}"
+        Write-Host "Reporting to status api at $uri"
+        Write-Host $statusJson
+
+        $headers = @{ Authorization = "token $(github--pat--vs-mobiletools-engineering-service2)" }
+        Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri $uri -Body $statusJson
+
+        # Comment on the original PR
+        $commentJson = @{
+          body = "$message! Backport $desc`! Please see $buildUri for more details."
+        } | ConvertTo-Json
+
+        $commentApi = "https://api.github.com/repos/${{ parameters.BackportRepoOrg }}/${{ parameters.BackportRepoName }}/issues/${{ parameters.BackportPRNumber }}/comments"
+        Write-Host "Commenting on original PR via $commentApi"
+        Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri $commentApi -Body $commentJson
+      displayName: Report Status on PR
+      condition: always()
