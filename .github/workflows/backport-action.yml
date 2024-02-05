@@ -144,7 +144,7 @@ jobs:
                 resources = @{
                   repositories = @{
                     self = @{
-                      refName = "refs/heads/dev/bond/relocate-pipeline"
+                      refName = "refs/heads/main"
                     }
                   }
                 };
