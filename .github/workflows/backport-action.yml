@@ -144,7 +144,7 @@ jobs:
                 resources = @{
                   repositories = @{
                     self = @{
-                      refName = "refs/heads/main"
+                      refName = "refs/heads/dev/bond/backport-1es-template"
                     }
                   }
                 };
