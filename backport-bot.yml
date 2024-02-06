@@ -82,9 +82,11 @@ extends:
         templateContext:
           outputs:
           - output: pipelineArtifact
+            displayName: 'Publish backport patch files'
             path: $(Build.ArtifactStagingDirectory)
             artifact: patch
             sbomEnabled: false      # Exclude Software Bill of Materials (SBOM) generation since it isn't needed for non-shipping artifacts and can take several minutes to execute
+            condition: always()
 
         steps:
         - checkout: self
