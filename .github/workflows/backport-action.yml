@@ -45,10 +45,11 @@ jobs:
     # GITHUB_TOKEN change from read-write to read-only on 2024-02-01 requiring permissions block
     # https://docs.opensource.microsoft.com/github/apps/permission-changes/
     # https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
+    # The workflow is not valid. .github/workflows/backport-trigger.yml (Line: 33, Col: 3): Error calling workflow 'xamarin/backport-bot-action/.github/workflows/backport-action.yml@v1.0-test'. The nested job 'launch_ado_build' is requesting 'actions: read, security-events: write', but is only allowed 'actions: none, security-events: none'.
     permissions:
-      actions: read
+      actions: none
       contents: read
-      security-events: write
+      security-events: none
     env:
       # Protect against script injection attacks via input variables (i.e., the content of the variables could be executed at the time of evaluation/expansion within a script)
       # Scripts must consume the environment variable settings instead

@@ -13,9 +13,9 @@ jobs:
     # https://docs.opensource.microsoft.com/github/apps/permission-changes/
     # https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
     permissions:
-      actions: write
+      actions: none
       contents: read
-      security-events: write
+      security-events: none
     if: github.event.issue.pull_request != '' && startswith(github.event.comment.body, '@gitbot backport')
     outputs:
       target_branch: ${{ steps.parse_comment.outputs.target_branch }}
