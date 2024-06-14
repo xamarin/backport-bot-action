@@ -239,7 +239,7 @@ extends:
             $headers = @{ Authorization = "token $(github--pat--vs-mobiletools-engineering-service2)" }
 
             # let it throw
-            $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri "https://api.github.com/repos/$(SourceRepo)/pulls" -Body ($payload | ConvertTo-json)
+            $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri "https://api.github.com/repos/$(SourceRepo)/pulls" -Body ($payload | ConvertTo-json) -ContentType 'application/json'
             $newPr =  $response.Content | ConvertFrom-Json
 
             Write-Host "Response is $newPr"
@@ -257,7 +257,7 @@ extends:
               labels = $labels
             }
             Write-Host "https://api.github.com/repos/(SourceRepo)/issues/$($response.number)/labels"
-            $response = Invoke-WebRequest -UseBasicParsing -Method PUT -Headers $headers -Uri "https://api.github.com/repos/$(SourceRepo)/issues/$($newPr.number)/labels" -Body ($payload | ConvertTo-json)
+            $response = Invoke-WebRequest -UseBasicParsing -Method PUT -Headers $headers -Uri "https://api.github.com/repos/$(SourceRepo)/issues/$($newPr.number)/labels" -Body ($payload | ConvertTo-json) -ContentType 'application/json'
           displayName: Open Pull Request
           env:
             UseFork: ${{ parameters.UseFork }}
@@ -289,7 +289,7 @@ extends:
             Write-Host $statusJson
 
             $headers = @{ Authorization = "token $(github--pat--vs-mobiletools-engineering-service2)" }
-            Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri $uri -Body $statusJson
+            Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri $uri -Body $statusJson -ContentType 'application/json'
 
             # Comment on the original PR
             $commentJson = @{
@@ -298,6 +298,6 @@ extends:
 
             $commentApi = "https://api.github.com/repos/${{ parameters.BackportRepoOrg }}/${{ parameters.BackportRepoName }}/issues/${{ parameters.BackportPRNumber }}/comments"
             Write-Host "Commenting on original PR via $commentApi"
-            Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri $commentApi -Body $commentJson
+            Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri $commentApi -Body $commentJson -ContentType 'application/json'
           displayName: Report Status on PR
           condition: always()
