@@ -239,10 +239,12 @@ extends:
             $headers = @{ Authorization = "token $(github--pat--vs-mobiletools-engineering-service2)" }
 
             # let it throw
-            $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri "https://api.github.com/repos/$(SourceRepo)/pulls" -Body ($payload | ConvertTo-json) -ContentType 'application/json'
+            $url = "https://api.github.com/repos/$(SourceRepo)/pulls"
+            Write-Host "Url pulls: ${url}"
+            $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri $url -Body ($payload | ConvertTo-json) -ContentType 'application/json'
             $newPr =  $response.Content | ConvertFrom-Json
 
-            Write-Host "Response is $newPr"
+            Write-Host "Response: ${newPr}"
             # add labels to the new created PR
             [System.Collections.Generic.List[string]]$labels= @()
             $labels.Add("backported")
@@ -256,8 +258,10 @@ extends:
             $payload=@{
               labels = $labels
             }
-            Write-Host "https://api.github.com/repos/(SourceRepo)/issues/$($response.number)/labels"
-            $response = Invoke-WebRequest -UseBasicParsing -Method PUT -Headers $headers -Uri "https://api.github.com/repos/$(SourceRepo)/issues/$($newPr.number)/labels" -Body ($payload | ConvertTo-json) -ContentType 'application/json'
+
+            $url = "https://api.github.com/repos/$(SourceRepo)/issues/$($newPr.number)/labels"
+            Write-Host "Url labels: ${url}"
+            $response = Invoke-WebRequest -UseBasicParsing -Method PUT -Headers $headers -Uri $url -Body ($payload | ConvertTo-json) -ContentType 'application/json'
           displayName: Open Pull Request
           env:
             UseFork: ${{ parameters.UseFork }}
