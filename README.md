@@ -12,8 +12,15 @@ trademarks or logos is subject to and must follow
 Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
 Any use of third-party trademarks or logos are subject to those third-party's policies.
 
-
 ## Testing
+
+To test `backport-bot.yml` pipeline changes, you will need to edit the `.github/workflows/backport-action.yml` file and temporarily update the trigger target branch from `main` to the name of your topic branch here:<br>
+https://github.com/xamarin/backport-bot-action/blob/b6cb9b0c1b51a5a03ba79cea51ee8602f24afe26/.github/workflows/backport-action.yml#L147
+
+For example change the `refName` setting from `refs/heads/main` to your topic branch such as `refs/heads/[TOPIC-BRANCH]`.  You should also add warning comment on the same line as a reminder to undo the change prior to merging your PR to main as follows:
+```
+refName = "refs/heads/[TOPIC-BRANCH]"  # UNDONE: DO NOT MERGE TO MAIN: Revert to using the main branch after testing
+```
 
 You can test changes from your topic branch (PR branch) by using the `v1.0-test` tag. Associate the tag with your latest changes by performing the following steps
 
