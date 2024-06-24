@@ -51,6 +51,7 @@ on:
 jobs:
   launch_ado_build:
     runs-on: ubuntu-latest
+    environment: Production
     # GITHUB_TOKEN change from read-write to read-only on 2024-02-01 requiring permissions block
     # https://docs.opensource.microsoft.com/github/apps/permission-changes/
     # https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
@@ -58,7 +59,7 @@ jobs:
       actions: none
       contents: read
       security-events: none
-      id-token: none
+      id-token: write
     env:
       # Protect against script injection attacks via input variables (i.e., the content of the variables could be executed at the time of evaluation/expansion within a script)
       # Scripts must consume the environment variable settings instead
@@ -68,10 +69,13 @@ jobs:
       PULL_REQUEST_URL: "${{ inputs.pull_request_url }}"
       TARGET_BRANCH: "${{ inputs.target_branch }}"
       USE_FORK: "${{ inputs.use_fork }}"
+      AZURE_TENANT_ID: "${{ inputs.azure_tenant_id }}"
+      AZURE_SUBSCRIPTION_ID: "${{ inputs.azure_subscription_id }}"
+      AZURE_CLIENT_ID: "${{ inputs.azure_client_id }}"
       ADO_ORGANIZATION: "${{ secrets.ado_organization }}"
       ADO_PROJECT: "${{ secrets.ado_project }}"
       ADO_PIPELINE_ID: "${{ secrets.backport_pipeline_id }}"
-      ADO_BUILD_PAT: "${{ secrets.ado_build_pat }}"
+
     steps:
       - name: Gather Parameters
         id: get_parameters
@@ -128,11 +132,36 @@ jobs:
           return $statusCode
         shell: pwsh
 
+      - name: Log into Azure
+        uses: azure/login@v2    # https://github.com/marketplace/actions/azure-login
+        with:
+          client-id: $env:AZURE_CLIENT_ID
+          tenant-id: $env:AZURE_TENANT_ID
+          subscription-id: $env:AZURE_SUBSCRIPTION_ID
+
+      - name: Set Azure DevOps access token
+        id: set-azdo-token
+        uses: azure/cli@v2      # https://github.com/marketplace/actions/azure-cli-action
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az version
+            az account show
+            echo "Acquiring Azure DevOps access token"
+            adoAccessToken=$(az account get-access-token --query accessToken --resource 499b84ac-1321-427f-aa17-267ca6975798 -o tsv)
+            adoAccessTokenHint="[not set]"
+            if [[ -n $adoAccessToken ]]; then
+                adoAccessTokenHint="${adoAccessToken:0:7}"
+            fi
+            echo "Azure DevOps access token (hint): ${adoAccessTokenHint}"
+            # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#setting-an-output-parameter
+            # https://stackoverflow.com/questions/57819539/github-actions-how-to-share-a-calculated-value-between-job-steps
+            echo "AZDO_ACCESS_TOKEN=${adoAccessToken}" >> $GITHUB_OUTPUT
+
       - run: |
           $adoOrganization = $env:ADO_ORGANIZATION
           $adoProject = $env:ADO_PROJECT
           $adoPipelineId = $env:ADO_PIPELINE_ID
-          $adoBuildPAT = $env:ADO_BUILD_PAT
           $gitHubRepository = $env:GITHUB_REPOSITORY
           $gitHubAccountPAT = $env:GITHUB_ACCOUNT_PAT
 
@@ -140,6 +169,16 @@ jobs:
           Write-Host "ADO_PROJECT: ${adoProject}"
           Write-Host "ADO_PIPELINE_ID: ${adoPipelineId}"
           Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
+
+          $adoAccessToken = "${{ steps.set-azdo-token.outputs.AZDO_ACCESS_TOKEN }}"
+
+          if (-not ([string]::IsNullOrEmpty($adoAccessToken))) {
+              $adoAccessTokenHint = $adoAccessToken.Substring(0, 7)
+          } else {
+              $adoAccessTokenHint = "[not set]"
+          }
+
+          Write-Host "Azure DevOps access token (hint): ${adoAccessTokenHint}"
 
           $message = ""
           $statusCode = 0
