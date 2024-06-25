@@ -9,6 +9,7 @@ on:
 jobs:
   setupBackport:
     runs-on: ubuntu-latest
+    environment: production   # https://docs.github.com/en/actions/using-jobs/using-environments-for-jobs
     # GITHUB_TOKEN change from read-write to read-only on 2024-02-01 requiring permissions block
     # https://docs.opensource.microsoft.com/github/apps/permission-changes/
     # https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
@@ -31,8 +32,8 @@ jobs:
           COMMENT: "${{ github.event.comment.body }}"
 
   launchBackportBuild:
+    environment: production   # https://docs.github.com/en/actions/using-jobs/using-environments-for-jobs
     needs: setupBackport
-    environment: Production
     uses: xamarin/backport-bot-action/.github/workflows/backport-action.yml@v1.0-test
     # GITHUB_TOKEN change from read-write to read-only on 2024-02-01 requiring permissions block
     # https://docs.opensource.microsoft.com/github/apps/permission-changes/
