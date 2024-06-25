@@ -78,7 +78,8 @@ jobs:
 
     steps:
       - name: Gather Parameters
-        id: get_parameters
+        id: gather-parameters
+        shell: pwsh
         run: |
           $statusCode = 0
           $message = ""
@@ -130,9 +131,9 @@ jobs:
             $statusCode = 1
           }
           return $statusCode
-        shell: pwsh
 
       - name: Log into Azure
+        id: log-into-azure
         uses: azure/login@v2    # https://github.com/marketplace/actions/azure-login
         with:
           client-id: ${{ env.AZURE_CLIENT_ID }}
@@ -158,7 +159,10 @@ jobs:
             # https://stackoverflow.com/questions/57819539/github-actions-how-to-share-a-calculated-value-between-job-steps
             echo "AZDO_ACCESS_TOKEN=${adoAccessToken}" >> $GITHUB_OUTPUT
 
-      - run: |
+      - name: Launch BackPort build
+        id: launch-build
+        shell: pwsh
+        run: |
           $adoOrganization = $env:ADO_ORGANIZATION
           $adoProject = $env:ADO_PROJECT
           $adoPipelineId = $env:ADO_PIPELINE_ID
@@ -226,4 +230,3 @@ jobs:
             Invoke-WebRequest -UseBasicParsing -Headers $headers -Method POST -Uri $uri -Body $jsonBody
           }
           return $statusCode
-        shell: pwsh
