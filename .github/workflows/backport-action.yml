@@ -24,6 +24,15 @@ on:
         required: false
         default: false
     secrets:
+      azure_tenant_id:
+        description: Tenant associated with the managed identity used to log into Azure
+        required: false
+      azure_subscription_id:
+        description: Subscription associated with the managed identity used to log into Azure
+        required: false
+      azure_client_id:
+        description: Client id associated with the managed identity used to log into Azure
+        required: false
       ado_organization:
         description: Azure DevOps organization that hosts the backport job
         required: true
@@ -33,12 +42,12 @@ on:
       backport_pipeline_id:
         description: ID of the backport yaml pipeline in Azure DevOps
         required: true
-      ado_build_pat:
-        description: PAT of an account that can launch builds on the backport pipeline in Azure DevOps
-        required: true
       github_account_pat:
         description: PAT for a github account that has write access to source repository
         required: true
+      ado_build_pat:
+        description: PAT of an account that can launch builds on the backport pipeline in Azure DevOps
+        required: false
 jobs:
   launch_ado_build:
     runs-on: ubuntu-latest
@@ -49,6 +58,7 @@ jobs:
       actions: none
       contents: read
       security-events: none
+      id-token: none
     env:
       # Protect against script injection attacks via input variables (i.e., the content of the variables could be executed at the time of evaluation/expansion within a script)
       # Scripts must consume the environment variable settings instead
