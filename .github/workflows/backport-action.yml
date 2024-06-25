@@ -58,6 +58,7 @@ jobs:
       actions: none
       contents: read
       security-events: none
+      id-token: ${{ secrets.azure_client_id == '' && none || write }}   # https://docs.github.com/en/actions/learn-github-actions/expressions#operators
     env:
       # Protect against script injection attacks via input variables (i.e., the content of the variables could be executed at the time of evaluation/expansion within a script)
       # Scripts must consume the environment variable settings instead
