@@ -124,6 +124,7 @@ jobs:
 
             $json = $parameters.Replace("`"","'")
             Write-Host "Setting output variables"
+            Write-Host "GITHUB_OUTPUT: $($env:GITHUB_OUTPUT)"
             [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "parameters=${json}$([Environment]::NewLine)")                 # Equivalent to the deprecated ::set-output command: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idoutputs
             [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "pr_number=${backportPRNumber}$([Environment]::NewLine)")
           } catch {
