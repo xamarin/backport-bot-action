@@ -209,8 +209,9 @@ jobs:
 
             Write-Host "Posting to $launchURI"
             Write-Host $jsonBody
-            $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoBuildPAT}"))
-            $headers = @{ Authorization = "Basic $encoded"}
+            # $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoAccessToken}"))
+            # $headers = @{ Authorization = "Basic $encoded"}
+            $headers = @{ Authorization = "bearer ${adoAccessToken}"}
             $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
             $responseJson = ConvertFrom-Json $response.Content
             Write-Host "Job successfully launched"
