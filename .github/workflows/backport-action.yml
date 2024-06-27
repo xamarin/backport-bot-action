@@ -226,7 +226,7 @@ jobs:
               body = $message
             } | ConvertTo-Json
 
-            $prNumber = steps.gather-parameters.outputs.pr_number
+            $prNumber = "${{ steps.gather-parameters.outputs.pr_number }}"
             Write-Host "PR number: ${prNumber}"
 
             $headers = @{ Authorization = "token ${gitHubAccountPAT}"}
