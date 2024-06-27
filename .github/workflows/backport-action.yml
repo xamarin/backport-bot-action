@@ -211,10 +211,11 @@ jobs:
             $headers = @{ Authorization = "Basic $encoded"}
             $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
             $responseJson = ConvertFrom-Json $response.Content
-            echo "Job successfully launched"
+            Write-Host "Job successfully launched"
+            Write-Host $responseJson
             $message = "Backport Job to branch **$($parameters.BackportTargetBranch)** Created! The magic is happening [here](https://dev.azure.com/${adoOrganization}/${adoProject}/_build/results?buildId=$($responseJson.id))"
           } catch {
-            Write-Host $_.Exception.Message
+            Write-Host "ERROR: $($_.Exception.Message)"
             $message = "I couldn't create a backport to **$($parameters.BackportTargetBranch)** for you. :( Please check the Action logs for more details."
             $statusCode = 1
           } finally {
