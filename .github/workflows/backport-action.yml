@@ -208,22 +208,16 @@ jobs:
                 };
               } | ConvertTo-Json -Depth 10
 
-            Write-Host "Posting to $launchURI"
-            Write-Host $jsonBody
-
+            # Token requires vso.build_execute permissions, which includes the ability to access build artifacts, definitions and requests; plus, the ability to update build properties, receive notifications about build events via service hooks
             $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoAccessToken}"))
-            $headers = @{ Authorization = "Basic $encoded"}               # Alternatively we could specify Bearer here and directly pass the token without having to encode it
-            # $headers = @{ Authorization = "bearer ${adoAccessToken}"}
+            $headers = @{ Authorization = "Basic $encoded"}               # Alternatively, we could specify Bearer here and directly pass the token without having to encode it
 
-            # TEST: See if the authorization token is able to list the builds that were previously run
-            Write-Host "Getting previously run builds"
-            $response = Invoke-WebRequest -UseBasicParsing -Method GET -Headers $headers -ContentType "application/json" -Uri $launchURI
-            $responseJson = ConvertFrom-Json $response.Content
-            Write-Host "Jobs"
-            Write-Host $responseJson
+            Write-Host "Launching the backport Azure DevOps build: $launchURI"
+            Write-Host $jsonBody
 
             $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
             $responseJson = ConvertFrom-Json $response.Content
+
             Write-Host "Job successfully launched"
             Write-Host $responseJson
             $message = "Backport Job to branch **$($parameters.BackportTargetBranch)** Created! The magic is happening [here](https://dev.azure.com/${adoOrganization}/${adoProject}/_build/results?buildId=$($responseJson.id))"
