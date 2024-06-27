@@ -124,8 +124,8 @@ jobs:
 
             $json = $parameters.Replace("`"","'")
             Write-Host "Setting output variables"
-            echo "::set-output name=parameters::$json"
-            echo "::set-output name=pr_number::$backportPRNumber"
+            echo "parameters=${json}" >> $GITHUB_OUTPUT
+            echo "pr_number=${backportPRNumber}" >> $GITHUB_OUTPUT
           } catch {
             Write-Host $_.Exception.Message
             $statusCode = 1
