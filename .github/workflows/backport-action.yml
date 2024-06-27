@@ -190,6 +190,7 @@ jobs:
           $message = ""
           $statusCode = 0
           try {
+            # https://learn.microsoft.com/en-us/rest/api/azure/devops/pipelines/runs/run-pipeline?view=azure-devops-rest-7.1
             $launchURI = "https://dev.azure.com/${adoOrganization}/${adoProject}/_apis/pipelines/${adoPipelineId}/runs?api-version=6.0-preview.1"
             Write-Host "LaunchURI: ${launchURI}"
             Write-Host "Grabbing parameters from prior step"
@@ -212,6 +213,14 @@ jobs:
             # $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoAccessToken}"))
             # $headers = @{ Authorization = "Basic $encoded"}
             $headers = @{ Authorization = "bearer ${adoAccessToken}"}
+
+            # TEST: See if the authorization token is able to list the builds that were previously run
+            Write-Host "Getting previously run builds"
+            $response = Invoke-WebRequest -UseBasicParsing -Method GET -Headers $headers -ContentType "application/json" -Uri $launchURI
+            $responseJson = ConvertFrom-Json $response.Content
+            Write-Host "Jobs"
+            Write-Host $responseJson
+
             $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
             $responseJson = ConvertFrom-Json $response.Content
             Write-Host "Job successfully launched"
