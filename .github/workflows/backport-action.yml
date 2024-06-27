@@ -188,8 +188,9 @@ jobs:
           $statusCode = 0
           try {
             $launchURI = "https://dev.azure.com/${adoOrganization}/${adoProject}/_apis/pipelines/${adoPipelineId}/runs?api-version=6.0-preview.1"
+            Write-Host "LaunchURI: ${launchURI}"
             Write-Host "Grabbing parameters from prior step"
-            $parameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
+            $parameters = ConvertFrom-Json "${{ steps.gather-parameters.outputs.parameters }}"
             Write-Host "$parameters"
             $jsonBody = @{
                 previewRun = false;
@@ -207,7 +208,6 @@ jobs:
             Write-Host $jsonBody
             $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoAccessToken}"))
             $headers = @{ Authorization = "Basic $encoded"}
-
             $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
             $responseJson = ConvertFrom-Json $response.Content
             echo "Job successfully launched"
