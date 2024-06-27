@@ -225,9 +225,11 @@ jobs:
               body = $message
             } | ConvertTo-Json
 
-            $headers = @{ Authorization = "token ${gitHubAccountPAT}"}
-            $uri = "https://api.github.com/repos/${gitHubRepository}/issues/${{ steps.get_parameters.outputs.pr_number }}/comments"
+            $prNumber = steps.gather-parameters.outputs.pr_number
+            Write-Host "PR number: ${prNumber}"
 
+            $headers = @{ Authorization = "token ${gitHubAccountPAT}"}
+            $uri = "https://api.github.com/repos/${gitHubRepository}/issues/${prNumber}/comments"
 
             Write-Host "Posting to $uri"
             Write-Host "$jsonBody"
