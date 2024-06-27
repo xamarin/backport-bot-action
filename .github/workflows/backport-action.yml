@@ -210,9 +210,10 @@ jobs:
 
             Write-Host "Posting to $launchURI"
             Write-Host $jsonBody
-            # $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoAccessToken}"))
-            # $headers = @{ Authorization = "Basic $encoded"}
-            $headers = @{ Authorization = "bearer ${adoAccessToken}"}
+
+            $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoAccessToken}"))
+            $headers = @{ Authorization = "Basic $encoded"}               # Alternatively we could specify Bearer here and directly pass the token without having to encode it
+            # $headers = @{ Authorization = "bearer ${adoAccessToken}"}
 
             # TEST: See if the authorization token is able to list the builds that were previously run
             Write-Host "Getting previously run builds"
