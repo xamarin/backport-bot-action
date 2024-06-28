@@ -55,4 +55,3 @@ jobs:
       ado_project: ${{ secrets.ADO_PROJECT }}
       backport_pipeline_id: ${{ secrets.BACKPORT_PIPELINEID }}
       github_account_pat: ${{ secrets.SERVICEACCOUNT_PAT }}
-      ado_build_pat: ${{ secrets.ADO_BUILDPAT }}

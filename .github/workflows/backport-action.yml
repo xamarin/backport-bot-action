@@ -45,9 +45,7 @@ on:
       github_account_pat:
         description: PAT for a github account that has write access to source repository
         required: true
-      ado_build_pat:
-        description: PAT of an account that can launch builds on the backport pipeline in Azure DevOps
-        required: false
+
 jobs:
   launch_ado_build:
     runs-on: ubuntu-latest
@@ -75,7 +73,6 @@ jobs:
       ADO_ORGANIZATION: "${{ secrets.ado_organization }}"
       ADO_PROJECT: "${{ secrets.ado_project }}"
       ADO_PIPELINE_ID: "${{ secrets.backport_pipeline_id }}"
-      ADO_BUILD_PAT: "${{ secrets.ado_build_pat }}"
 
     steps:
       - name: Gather Parameters
@@ -177,7 +174,6 @@ jobs:
           Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
 
           $adoAccessToken = "${{ steps.set-azdo-token.outputs.AZDO_ACCESS_TOKEN }}"
-          $adoBuildPAT = $env:ADO_BUILD_PAT
 
           if (-not ([string]::IsNullOrEmpty($adoAccessToken))) {
               $adoAccessTokenHint = $adoAccessToken.Substring(0, 7)
