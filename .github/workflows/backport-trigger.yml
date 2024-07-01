@@ -22,11 +22,12 @@ jobs:
     steps:
       - name: Parse Comment
         id: parse_comment
+        shell: pwsh
         run: |
           Write-Host "Parsing $env:COMMENT"
           ($botName, $backport, $backportTargetBranch) = [System.Text.RegularExpressions.Regex]::Split("$env:COMMENT", "\s+")
-          echo "::set-output name=target_branch::$backportTargetBranch"
-        shell: pwsh
+          Write-Host "GITHUB_OUTPUT: ${env:GITHUB_OUTPUT}"
+          [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "target_branch=${backportTargetBranch}$([Environment]::NewLine)")                 # Equivalent to the deprecated ::set-output command: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idoutputs
         env:
           COMMENT: "${{ github.event.comment.body }}"
 
@@ -48,11 +49,10 @@ jobs:
       github_repository: ${{ github.repository }}
       use_fork: false
     secrets:
-      azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
-      azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+      azure_tenant_id: ${{ secrets.BACKPORT_AZURE_TENANT_ID }}
+      azure_subscription_id: ${{ secrets.BACKPORT_AZURE_SUBSCRIPTION_ID }}
+      azure_client_id: ${{ secrets.BACKPORT_AZURE_CLIENT_ID }}
       ado_organization: ${{ secrets.ADO_PROJECTCOLLECTION }}
       ado_project: ${{ secrets.ADO_PROJECT }}
       backport_pipeline_id: ${{ secrets.BACKPORT_PIPELINEID }}
       github_account_pat: ${{ secrets.SERVICEACCOUNT_PAT }}
-      ado_build_pat: ${{ secrets.ADO_BUILDPAT }}

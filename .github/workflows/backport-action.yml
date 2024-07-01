@@ -45,9 +45,7 @@ on:
       github_account_pat:
         description: PAT for a github account that has write access to source repository
         required: true
-      ado_build_pat:
-        description: PAT of an account that can launch builds on the backport pipeline in Azure DevOps
-        required: false
+
 jobs:
   launch_ado_build:
     runs-on: ubuntu-latest
@@ -58,7 +56,7 @@ jobs:
       actions: none
       contents: read
       security-events: none
-      id-token: none
+      id-token: write
     env:
       # Protect against script injection attacks via input variables (i.e., the content of the variables could be executed at the time of evaluation/expansion within a script)
       # Scripts must consume the environment variable settings instead
@@ -68,13 +66,17 @@ jobs:
       PULL_REQUEST_URL: "${{ inputs.pull_request_url }}"
       TARGET_BRANCH: "${{ inputs.target_branch }}"
       USE_FORK: "${{ inputs.use_fork }}"
+      AZURE_TENANT_ID: "${{ secrets.azure_tenant_id }}"
+      AZURE_SUBSCRIPTION_ID: "${{ secrets.azure_subscription_id }}"
+      AZURE_CLIENT_ID: "${{ secrets.azure_client_id }}"
       ADO_ORGANIZATION: "${{ secrets.ado_organization }}"
       ADO_PROJECT: "${{ secrets.ado_project }}"
       ADO_PIPELINE_ID: "${{ secrets.backport_pipeline_id }}"
-      ADO_BUILD_PAT: "${{ secrets.ado_build_pat }}"
+
     steps:
       - name: Gather Parameters
-        id: get_parameters
+        id: gather-parameters
+        shell: pwsh
         run: |
           $statusCode = 0
           $message = ""
@@ -119,20 +121,49 @@ jobs:
 
             $json = $parameters.Replace("`"","'")
             Write-Host "Setting output variables"
-            echo "::set-output name=parameters::$json"
-            echo "::set-output name=pr_number::$backportPRNumber"
+            Write-Host "GITHUB_OUTPUT: ${env:GITHUB_OUTPUT}"
+            [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "parameters=${json}$([Environment]::NewLine)")                 # Equivalent to the deprecated ::set-output command: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idoutputs
+            [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "pr_number=${backportPRNumber}$([Environment]::NewLine)")
           } catch {
             Write-Host $_.Exception.Message
             $statusCode = 1
           }
           return $statusCode
-        shell: pwsh
 
-      - run: |
+      - name: Log into Azure
+        id: log-into-azure
+        uses: azure/login@v2    # https://github.com/marketplace/actions/azure-login
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set Azure DevOps access token
+        id: set-azdo-token
+        uses: azure/cli@v2      # https://github.com/marketplace/actions/azure-cli-action
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az version
+            az account show
+            echo "Acquiring Azure DevOps access token"
+            adoAccessToken=$(az account get-access-token --query accessToken --resource 499b84ac-1321-427f-aa17-267ca6975798 -o tsv)
+            adoAccessTokenHint="[not set]"
+            if [[ -n $adoAccessToken ]]; then
+                adoAccessTokenHint="${adoAccessToken:0:7}"
+            fi
+            echo "Azure DevOps access token (hint): ${adoAccessTokenHint}"
+            # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#setting-an-output-parameter
+            # https://stackoverflow.com/questions/57819539/github-actions-how-to-share-a-calculated-value-between-job-steps
+            echo "AZDO_ACCESS_TOKEN=${adoAccessToken}" >> $GITHUB_OUTPUT
+
+      - name: Launch BackPort build
+        id: launch-build
+        shell: pwsh
+        run: |
           $adoOrganization = $env:ADO_ORGANIZATION
           $adoProject = $env:ADO_PROJECT
           $adoPipelineId = $env:ADO_PIPELINE_ID
-          $adoBuildPAT = $env:ADO_BUILD_PAT
           $gitHubRepository = $env:GITHUB_REPOSITORY
           $gitHubAccountPAT = $env:GITHUB_ACCOUNT_PAT
 
@@ -141,12 +172,24 @@ jobs:
           Write-Host "ADO_PIPELINE_ID: ${adoPipelineId}"
           Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
 
+          $adoAccessToken = "${{ steps.set-azdo-token.outputs.AZDO_ACCESS_TOKEN }}"
+
+          if (-not ([string]::IsNullOrEmpty($adoAccessToken))) {
+              $adoAccessTokenHint = $adoAccessToken.Substring(0, 7)
+          } else {
+              $adoAccessTokenHint = "[not set]"
+          }
+
+          Write-Host "Azure DevOps access token (hint): ${adoAccessTokenHint}"
+
           $message = ""
           $statusCode = 0
           try {
+            # https://learn.microsoft.com/en-us/rest/api/azure/devops/pipelines/runs/run-pipeline?view=azure-devops-rest-7.1
             $launchURI = "https://dev.azure.com/${adoOrganization}/${adoProject}/_apis/pipelines/${adoPipelineId}/runs?api-version=6.0-preview.1"
+            Write-Host "LaunchURI: ${launchURI}"
             Write-Host "Grabbing parameters from prior step"
-            $parameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
+            $parameters = ConvertFrom-Json "${{ steps.gather-parameters.outputs.parameters }}"
             Write-Host "$parameters"
             $jsonBody = @{
                 previewRun = false;
@@ -160,17 +203,21 @@ jobs:
                 };
               } | ConvertTo-Json -Depth 10
 
-            Write-Host "Posting to $launchURI"
+            # Token requires vso.build_execute permissions, which includes the ability to access build artifacts, definitions and requests; plus, the ability to update build properties, receive notifications about build events via service hooks
+            $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoAccessToken}"))
+            $headers = @{ Authorization = "Basic $encoded"}               # Alternatively, we could specify Bearer here and directly pass the token without having to encode it
+
+            Write-Host "Launching the backport Azure DevOps build: $launchURI"
             Write-Host $jsonBody
-            $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoBuildPAT}"))
-            $headers = @{ Authorization = "Basic $encoded"}
 
             $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
             $responseJson = ConvertFrom-Json $response.Content
-            echo "Job successfully launched"
+
+            Write-Host "Job successfully launched"
+            Write-Host $responseJson
             $message = "Backport Job to branch **$($parameters.BackportTargetBranch)** Created! The magic is happening [here](https://dev.azure.com/${adoOrganization}/${adoProject}/_build/results?buildId=$($responseJson.id))"
           } catch {
-            Write-Host $_.Exception.Message
+            Write-Host "ERROR: $($_.Exception.Message)"
             $message = "I couldn't create a backport to **$($parameters.BackportTargetBranch)** for you. :( Please check the Action logs for more details."
             $statusCode = 1
           } finally {
@@ -178,13 +225,14 @@ jobs:
               body = $message
             } | ConvertTo-Json
 
-            $headers = @{ Authorization = "token ${gitHubAccountPAT}"}
-            $uri = "https://api.github.com/repos/${gitHubRepository}/issues/${{ steps.get_parameters.outputs.pr_number }}/comments"
+            $prNumber = "${{ steps.gather-parameters.outputs.pr_number }}"
+            Write-Host "PR number: ${prNumber}"
 
+            $headers = @{ Authorization = "token ${gitHubAccountPAT}"}
+            $uri = "https://api.github.com/repos/${gitHubRepository}/issues/${prNumber}/comments"
 
             Write-Host "Posting to $uri"
             Write-Host "$jsonBody"
             Invoke-WebRequest -UseBasicParsing -Headers $headers -Method POST -Uri $uri -Body $jsonBody
           }
           return $statusCode
-        shell: pwsh
