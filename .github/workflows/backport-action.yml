@@ -150,9 +150,10 @@ jobs:
         id: log-into-azure
         uses: azure/login@v2    # https://github.com/marketplace/actions/azure-login
         with:
-          client-id: ${{ env.AZURE_CLIENT_ID }}
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          auth-type: IDENTITY
 
       - name: Set Azure DevOps access token
         id: set-azdo-token
