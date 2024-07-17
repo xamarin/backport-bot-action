@@ -74,6 +74,58 @@ jobs:
       ADO_PIPELINE_ID: "${{ secrets.backport_pipeline_id }}"
 
     steps:
+      - name: Show parameters
+        id: show-parameters
+        shell: pwsh
+        run: |
+          $gitHubRepository = $env:GITHUB_REPOSITORY
+          $commentAuthor = $env:COMMENT_AUTHOR
+          $pullRequestUrl = $env:PULL_REQUEST_URL
+          $backportTargetBranch = $env:TARGET_BRANCH
+          $useFork = $env:USE_FORK
+
+          Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
+          Write-Host "COMMENT_AUTHOR: ${commentAuthor}"
+          Write-Host "PULL_REQUEST_URL: ${pullRequestUrl}"
+          Write-Host "TARGET_BRANCH: ${backportTargetBranch}"
+          Write-Host "USE_FORK: ${useFork}"
+
+          $gitHubAccountPAT = $env:GITHUB_ACCOUNT_PAT
+          if (-not ([string]::IsNullOrEmpty($gitHubAccountPAT))) {
+              $gitHubAccountPATHint = $gitHubAccountPAT.Substring(0, 8)
+          } else {
+              $gitHubAccountPATHint = '[not set]'
+          }
+
+          Write-Host "GITHUB_ACCOUNT_PAT (hint): ${gitHubAccountPATHint}"
+
+          $azureTenantId = $env:AZURE_TENANT_ID
+          if (-not ([string]::IsNullOrEmpty($azureTenantId))) {
+              $azureTenantIdHint = $azureTenantId.Substring(0, 8)
+          } else {
+              $azureTenantIdHint = '[not set]'
+          }
+
+          Write-Host "AZURE_TENTANT_ID (hint): ${azureTenantIdHint}"
+
+          $azureSubscriptionId = $env:AZURE_SUBSCRIPTION_ID
+          if (-not ([string]::IsNullOrEmpty($azureSubscriptionId))) {
+              $azureSubscriptionIdHint = $azureSubscriptionId.Substring(0, 8)
+          } else {
+              $azureSubscriptionIdHint = '[not set]'
+          }
+
+          Write-Host "AZURE_SUBSCRIPTION_ID (hint): ${azureSubscriptionIdHint}"
+
+          $azureClientId = $env:AZURE_CLIENT_ID
+          if (-not ([string]::IsNullOrEmpty($azureClientId))) {
+              $azureClientIdHint = $azureClientId.Substring(0, 8)
+          } else {
+              $azureClientIdHint = '[not set]'
+          }
+
+          Write-Host "AZURE_CLIENT_ID (hint): ${azureClientIdHint}"
+
       - name: Gather Parameters
         id: gather-parameters
         shell: pwsh
@@ -134,9 +186,10 @@ jobs:
         id: log-into-azure
         uses: azure/login@v2    # https://github.com/marketplace/actions/azure-login
         with:
-          client-id: ${{ env.AZURE_CLIENT_ID }}
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          auth-type: SERVICE_PRINCIPAL
 
       - name: Set Azure DevOps access token
         id: set-azdo-token
