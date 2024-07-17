@@ -74,6 +74,22 @@ jobs:
       ADO_PIPELINE_ID: "${{ secrets.backport_pipeline_id }}"
 
     steps:
+      - name: Show parameters
+        id: show-parameters
+        shell: pwsh
+        run: |
+          $azureTenantId = $env:AZURE_TENANT_ID
+          $azureTenantIdHint = $azureTentantId.Substring(0, 8)
+          Write-Host "AZURE_TENTANT_ID (hint): ${azureTenantIdHint}"
+
+          $azureSubscriptionId = $env:AZURE_SUBSCRIPTION_ID
+          $azureSubscriptionIdHint = $azureSubscriptionId.Substring(0, 8)
+          Write-Host "AZURE_SUBSCRIPTION_ID (hint): ${azureSubscriptionIdHint}"
+
+          $azureClientId = $env:AZURE_CLIENT_ID
+          $azureClientIdHint = $azureClientId.Substring(0, 8)
+          Write-Host "AZURE_CLIENT_ID (hint): ${azureClientIdHint}"
+
       - name: Gather Parameters
         id: gather-parameters
         shell: pwsh
