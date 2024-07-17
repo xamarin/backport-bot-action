@@ -78,6 +78,27 @@ jobs:
         id: show-parameters
         shell: pwsh
         run: |
+          $gitHubRepository = $env:GITHUB_REPOSITORY
+          $commentAuthor = $env:COMMENT_AUTHOR
+          $pullRequestUrl = $env:PULL_REQUEST_URL
+          $backportTargetBranch = $env:TARGET_BRANCH
+          $useFork = $env:USE_FORK
+
+          Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
+          Write-Host "COMMENT_AUTHOR: ${commentAuthor}"
+          Write-Host "PULL_REQUEST_URL: ${pullRequestUrl}"
+          Write-Host "TARGET_BRANCH: ${backportTargetBranch}"
+          Write-Host "USE_FORK: ${useFork}"
+
+          $gitHubAccountPAT = $env:GITHUB_ACCOUNT_PAT
+          if (-not ([string]::IsNullOrEmpty($gitHubAccountPAT))) {
+              $gitHubAccountPATHint = $gitHubAccountPAT.Substring(0, 8)
+          } else {
+              $gitHubAccountPATHint = '[not set]'
+          }
+
+          Write-Host "GITHUB_ACCOUNT_PAT: ${gitHubAccountPATHint}"
+
           $azureTenantId = $env:AZURE_TENANT_ID
           if (-not ([string]::IsNullOrEmpty($azureTenantId))) {
               $azureTenantIdHint = $azureTenantId.Substring(0, 8)
