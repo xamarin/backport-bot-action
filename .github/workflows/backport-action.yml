@@ -97,7 +97,7 @@ jobs:
               $gitHubAccountPATHint = '[not set]'
           }
 
-          Write-Host "GITHUB_ACCOUNT_PAT: ${gitHubAccountPATHint}"
+          Write-Host "GITHUB_ACCOUNT_PAT (hint): ${gitHubAccountPATHint}"
 
           $azureTenantId = $env:AZURE_TENANT_ID
           if (-not ([string]::IsNullOrEmpty($azureTenantId))) {
