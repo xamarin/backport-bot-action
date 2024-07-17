@@ -168,7 +168,7 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
           client-id: ${{ env.AZURE_CLIENT_ID }}
-          auth-type: IDENTITY
+          auth-type: SERVICE_PRINCIPAL
 
       - name: Set Azure DevOps access token
         id: set-azdo-token
