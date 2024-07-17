@@ -79,15 +79,30 @@ jobs:
         shell: pwsh
         run: |
           $azureTenantId = $env:AZURE_TENANT_ID
-          $azureTenantIdHint = $azureTentantId.Substring(0, 8)
+          if (-not ([string]::IsNullOrEmpty($azureTenantId))) {
+              $azureTenantIdHint = $azureTenantId.Substring(0, 8)
+          } else {
+              $azureTenantIdHint = '[not set]'
+          }
+
           Write-Host "AZURE_TENTANT_ID (hint): ${azureTenantIdHint}"
 
           $azureSubscriptionId = $env:AZURE_SUBSCRIPTION_ID
-          $azureSubscriptionIdHint = $azureSubscriptionId.Substring(0, 8)
+          if (-not ([string]::IsNullOrEmpty($azureSubscriptionId))) {
+              $azureSubscriptionIdHint = $azureSubscriptionId.Substring(0, 8)
+          } else {
+              $azureSubscriptionIdHint = '[not set]'
+          }
+
           Write-Host "AZURE_SUBSCRIPTION_ID (hint): ${azureSubscriptionIdHint}"
 
           $azureClientId = $env:AZURE_CLIENT_ID
-          $azureClientIdHint = $azureClientId.Substring(0, 8)
+          if (-not ([string]::IsNullOrEmpty($azureClientId))) {
+              $azureClientIdHint = $azureClientId.Substring(0, 8)
+          } else {
+              $azureClientIdHint = '[not set]'
+          }
+
           Write-Host "AZURE_CLIENT_ID (hint): ${azureClientIdHint}"
 
       - name: Gather Parameters
