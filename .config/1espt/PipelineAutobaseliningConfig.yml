@@ -5,8 +5,8 @@ pipelines:
     retail:
       binary:
         credscan:
-          lastModifiedDate: 2024-08-21
+          lastModifiedDate: 2024-08-22
         binskim:
-          lastModifiedDate: 2024-08-21
+          lastModifiedDate: 2024-08-22
         spotbugs:
-          lastModifiedDate: 2024-08-21
+          lastModifiedDate: 2024-08-22
