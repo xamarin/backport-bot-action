@@ -124,7 +124,8 @@ resources:
 
 variables:
   - group: Xamarin-Secrets        # https://dev.azure.com/xamarin/public/_library?itemType=VariableGroups&view=VariableGroupView&variableGroupId=19&path=Xamarin-Secrets
-  - group: DDBotDeploy Secrets    # https://devdiv.visualstudio.com/DefaultCollection/Engineering/_library?itemType=VariableGroups&view=VariableGroupView&variableGroupId=579&path=DDBotDeploy%20Secrets
+# UNDONE: Onboard DDBotDeploy
+#  - group: DDBotDeploy Secrets    # https://devdiv.visualstudio.com/DefaultCollection/Engineering/_library?itemType=VariableGroups&view=VariableGroupView&variableGroupId=579&path=DDBotDeploy%20Secrets
   - name: GitHub.Token
     value: $(github--pat--vs-mobiletools-engineering-service)
   - name: PROVISIONATOR_CHANNEL
@@ -281,10 +282,10 @@ jobs:
 
     - ${{ if eq(parameters.RebootAgent, true) }}:
       # Sets the AzDO.BearerToken variable used as the auth token to disable/reenable agents
-      - template: ./generate-token.yml
-      - template: agent-rebooter/mac.v1.yml@templates
-        parameters:
-          AgentPoolAccessToken: $(AzDO.BearerToken)
+      # - template: ./generate-token.yml
+      # - template: agent-rebooter/mac.v1.yml@templates
+      #  parameters:
+      #    AgentPoolAccessToken: $(AzDO.BearerToken)
 
       - powershell: |
           function Stage-File([string] $ScriptsStagingDirectory, [string] $PathAndFilename) {
