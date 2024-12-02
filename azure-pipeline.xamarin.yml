@@ -128,8 +128,6 @@ variables:
 #  - group: DDBotDeploy Secrets    # https://devdiv.visualstudio.com/DefaultCollection/Engineering/_library?itemType=VariableGroups&view=VariableGroupView&variableGroupId=579&path=DDBotDeploy%20Secrets
   - name: GitHub.Token
     value: $(github--pat--vs-mobiletools-engineering-service)
-  - name: PROVISIONATOR_CHANNEL
-    value: ${{ parameters.provisionatorChannel }}
   - name: system.debug
     value: false
 
@@ -246,33 +244,6 @@ jobs:
         BrewPackagesToInstall: ${{ parameters.BrewPackagesToInstall }}
         GitHubToken: $(GitHub.Token)
 
-    - ${{ if eq(parameters.Provision, true) }}:
-      - bash: |
-          provisioningScript="${{ parameters.ProvisioningScript }}"
-          echo "Provisioning script: ${provisioningScript}"
-
-          echo "Initialize PAT: Setting keychain"
-          echo "PROVISIONATOR_CHANNEL: ${PROVISIONATOR_CHANNEL}"
-          githubToken="$(GitHub.Token)"
-          if [[ -n "$githubToken" ]]; then
-            githubTokenPartial="${githubToken:0:8}"
-            echo "githubToken [partial]: ${githubTokenPartial}"
-
-            # Avoid calling 'provisionator-bootstrap.sh keychain set github.com $githubToken' since Provisionator will obtain the token from the AUTH_TOKEN_GITHUB_COM environment variable
-
-            echo "Executing provisionator"
-            chmod +x provisionator-bootstrap.sh
-            ./provisionator-bootstrap.sh $provisioningScript -v -v -v -v || exit 2
-          else
-            echo "ERROR: GitHub.Token build variable not set"
-            exit 1
-          fi
-        env:
-          AUTH_TOKEN_GITHUB_COM: $(GitHub.Token)      # Avoid having Provisionator retrieve the token from the keychain, which can lead to hangs on certain build agents; instead Provisionator will obtain the GitHub token from this environment variable
-        workingDirectory: provisioning
-        timeoutInMinutes: 20
-        displayName: Provision
-
     - ${{ if gt(parameters.WaitTime, 0) }}:
       - powershell: |
           $waitTime = ${{ parameters.WaitTime }}
@@ -343,43 +314,3 @@ jobs:
           artifactName: rebooter.scripts
           pathToPublish: $(Scripts.Directory)
 
-  # Windows pool
-  - ${{ if startswith(parameters.AgentPool, 'Hosted-Windows-') }}:
-    - ${{ if eq(parameters.Provision, true) }}:
-      - ${{ if eq(parameters.ProvisioningScript, '7zip.csx') }}:
-        - powershell: |
-            $path = $env:ProgramFiles
-            ls "$path"
-
-            $path7zip = Join-Path -Path $path -ChildPath '7-Zip'
-            Write-Host "7-zip path: ${path7zip}"
-
-            $filename = '7z.exe'
-            $pathAndFilename = Join-Path -Path $path7zip -ChildPath $filename
-
-            Write-Host "7-zip: ${pathAndFilename}"
-            if (Test-Path -Path -$path7zip -PathType Container) {
-                Write-Host "Directory contents"
-                ls "$path7zip"
-            }
-
-            if (Test-Path -Path $pathAndFilename -PathType Leaf) {
-                Write-Host "Removing: ${pathAndFilename}"
-                Remove-Item $pathAndFilename -Force
-            } else {
-                Write-Host "${pathAndFilename} not found"
-            }
-          displayName: 'Cleanse 7-zip'
-
-      - task: xamops.azdevex.provisionator-task.provisionator@2
-        displayName: Provision
-        inputs:
-          # The following are also defined in the xamops-azdev-secrets variable group: https://devdiv.visualstudio.com/DevDiv/_library?itemType=VariableGroups&view=VariableGroupView&variableGroupId=168&path=xamops-azdev-secrets
-          provisionator_uri: https://dl.internalx.com/provisionator/664bd334021e3102cdef1af66c4fc9f1b2ecd2a21b47419e80d08da1f6c61c2a
-          provisioning_script: $(Build.SourcesDirectory)/provisioning/${{ parameters.ProvisioningScript }}
-          provisioning_extra_args: -vvvv
-          github_token: $(GitHub.Token)
-        env:
-          PROVISIONATOR_CHANNEL: ${{ parameters.provisionatorChannel }}
-        # Task control options: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/tasks?view=azure-devops&tabs=yaml#task-control-options
-        timeoutInMinutes: 20
