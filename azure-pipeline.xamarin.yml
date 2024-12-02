@@ -48,10 +48,6 @@ parameters:
   type: boolean
   default: false
 
-- name: SelfHealPowerShell
-  type: boolean
-  default: false
-
 - name: TeminateSimulators
   type: boolean
   default: true
@@ -123,11 +119,8 @@ resources:
     endpoint: xamarin
 
 variables:
-  - group: Xamarin-Secrets        # https://dev.azure.com/xamarin/public/_library?itemType=VariableGroups&view=VariableGroupView&variableGroupId=19&path=Xamarin-Secrets
 # UNDONE: Onboard DDBotDeploy
 #  - group: DDBotDeploy Secrets    # https://devdiv.visualstudio.com/DefaultCollection/Engineering/_library?itemType=VariableGroups&view=VariableGroupView&variableGroupId=579&path=DDBotDeploy%20Secrets
-  - name: GitHub.Token
-    value: $(github--pat--vs-mobiletools-engineering-service)
   - name: system.debug
     value: false
 
@@ -230,7 +223,7 @@ jobs:
     - template: agent-cleanser/v1.yml@templates
       parameters:
         CleanseProcesses: ${{ parameters.CleanseProcesses }}
-        SelfHealPowerShell: ${{ parameters.SelfHealPowerShell }}
+        SelfHealPowerShell: false                                                 # This is the only cleansing activity that requires GitHub.Token and so avoid using it
         TeminateSimulators: ${{ parameters.TeminateSimulators }}
         TerminatePopups: ${{ parameters.TerminatePopups }}
         UninstallMono: ${{ parameters.UninstallMono }}
@@ -242,7 +235,6 @@ jobs:
         CheckBrewInstall: ${{ parameters.CheckBrewInstall }}
         InstallBrewPackages: ${{ parameters.InstallBrewPackages }}
         BrewPackagesToInstall: ${{ parameters.BrewPackagesToInstall }}
-        GitHubToken: $(GitHub.Token)
 
     - ${{ if gt(parameters.WaitTime, 0) }}:
       - powershell: |
