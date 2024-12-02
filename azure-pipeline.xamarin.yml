@@ -7,7 +7,7 @@ parameters:
   default: MAUI
   values:
   - MAUI                          # https://dev.azure.com/xamarin/public/_settings/agentqueues?queueId=96&view=agents
-#  - Maui-Testing                  # https://dev.azure.com/xamarin/public/_settings/agentqueues?queueId=100&view=agents
+  - MAUI-Testing                  # https://dev.azure.com/xamarin/public/_settings/agentqueues?queueId=100&view=agents
 
 - name: YamlTemplatesBranch
   type: string
