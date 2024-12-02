@@ -4,9 +4,9 @@ parameters:
 - name: AgentPool
   displayName: Agent pool
   type: string
-  default: Maui
+  default: MAUI
   values:
-  - Maui                          # https://dev.azure.com/xamarin/public/_settings/agentqueues?queueId=96&view=agents
+  - MAUI                          # https://dev.azure.com/xamarin/public/_settings/agentqueues?queueId=96&view=agents
 #  - Maui-Testing                  # https://dev.azure.com/xamarin/public/_settings/agentqueues?queueId=100&view=agents
 
 - name: YamlTemplatesBranch
