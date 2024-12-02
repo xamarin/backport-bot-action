@@ -1,0 +1,485 @@
+# AgentCleanser pipeline: https://devdiv.visualstudio.com/DevDiv/_build/index?definitionId=15425&_a=completed
+
+parameters:
+- name: AgentPool
+  displayName: Agent pool
+  type: string
+  default: Maui
+  values:
+  - Maui                          # https://dev.azure.com/xamarin/public/_settings/agentqueues?queueId=96&view=agents
+#  - Maui-Testing                  # https://dev.azure.com/xamarin/public/_settings/agentqueues?queueId=100&view=agents
+
+- name: YamlTemplatesBranch
+  type: string
+  default: "refs/heads/main"
+
+- name: WaitTime
+  displayName: Job wait time (seconds)
+  type: number
+  default: 0
+
+- name: AgentName
+  displayName: Agent name
+  type: string
+  default: Any
+
+- name: RebootAgent
+  type: boolean
+  default: false
+
+- name: MacOS
+  displayName: Mac OS
+  type: string
+  default: Sonoma
+  values:
+  - Any
+  - Sonoma
+  - Sequoia
+
+- name: MacArchitecture
+  displayName: Mac architecture
+  type: string
+  default: arm64
+  values:
+  - x64
+  - arm64
+
+- name: CleanseProcesses
+  type: boolean
+  default: false
+
+- name: SelfHealPowerShell
+  type: boolean
+  default: false
+
+- name: TeminateSimulators
+  type: boolean
+  default: true
+
+- name: TerminatePopups
+  type: boolean
+  default: false
+
+- name: UninstallMono
+  type: boolean
+  default: true
+
+- name: UninstallXamarinMac
+  type: boolean
+  default: true
+
+- name: CleanseProvisionatorCache
+  type: boolean
+  default: true
+
+- name: CleanseXcodeArchives
+  type: boolean
+  default: true
+
+- name: CleanseAgentToolsDotNet
+  type: boolean
+  default: false
+
+- name: CleanseAgentRebooter
+  type: boolean
+  default: true
+
+- name: CheckBrewInstall
+  type: boolean
+  default: false
+
+- name: InstallBrewPackages
+  type: boolean
+  default: false
+
+- name: BrewPackagesToInstall
+  type: string
+  default: " " # Parameters can't be empty, but whitespace is treated as an empty string
+
+- name: Provision
+  type: boolean
+  default: false
+
+- name: provisionatorChannel
+  displayName: 'Provisionator channel'
+  type: string
+  default: 'latest'           # Support for launching a build against a Provisionator PR (e.g., pr/[github-account-name]/[pr-number]) as a means to test in-progress Provisionator changes
+
+- name: ProvisioningScript
+  displayName: 'Provisioning script'
+  type: string
+  default: 'provision.csx'
+
+- name: InstallCertificates
+  displayName: 'Install certificates method'
+  type: string
+  default: None
+  values:
+  - None
+  - SecretsStore
+  - ProvisionatorTask
+  - ProvisionatorScript
+  - Template
+
+- name: CertificateProvisionatorScript
+  displayName: 'Certificate provisioning script'
+  type: string
+  default: apple-dev-cert.xma.csx
+  values:
+  - apple-dev-cert.maui.csx
+  - apple-dev-cert.xma.csx
+
+- name: UninstallCertificates
+  displayName: 'Uninstall certificates'
+  type: boolean
+  default: true
+
+resources:
+  repositories:
+  - repository: self
+    checkoutOptions:
+      submodules: false
+
+  - repository: templates
+    type: github
+    name: xamarin/yaml-templates
+    ref: ${{ parameters.YamlTemplatesBranch }}
+    endpoint: xamarin
+
+variables:
+  - group: Xamarin-Secrets        # https://devdiv.visualstudio.com/DevDiv/_library?itemType=VariableGroups&view=VariableGroupView&variableGroupId=169&path=Xamarin-Secrets
+  - group: Xamarin Signing        # https://devdiv.visualstudio.com/DevDiv/_library?itemType=VariableGroups&view=VariableGroupView&variableGroupId=49&path=Xamarin%20Signing
+  - group: DDBotDeploy Secrets    # https://devdiv.visualstudio.com/DefaultCollection/Engineering/_library?itemType=VariableGroups&view=VariableGroupView&variableGroupId=579&path=DDBotDeploy%20Secrets
+  - name: GitHub.Token
+    value: $(github--pat--vs-mobiletools-engineering-service)
+  - name: PROVISIONATOR_CHANNEL
+    value: ${{ parameters.provisionatorChannel }}
+  - name: system.debug
+    value: false
+
+trigger:
+- main
+
+jobs:
+- job: AgentCleanser
+  timeoutInMinutes: 60
+  pool:
+    ${{ if eq(parameters.AgentPool, 'Hosted-MacOS-14') }}:
+      name: 'Azure Pipelines'
+      vmImage: macOS-14           # https://learn.microsoft.com/en-us/azure/devops/pipelines/agents/hosted?view=azure-devops&tabs=yaml
+    ${{ elseif eq(parameters.AgentPool, 'Hosted-MacOS-13') }}:
+      name: 'Azure Pipelines'
+      vmImage: macOS-13           # https://learn.microsoft.com/en-us/azure/devops/pipelines/agents/hosted?view=azure-devops&tabs=yaml
+    ${{ elseif eq(parameters.AgentPool, 'Hosted-Windows-2022') }}:
+      name: 'Azure Pipelines'
+      vmImage: Windows-2022       # https://learn.microsoft.com/en-us/azure/devops/pipelines/agents/hosted?view=azure-devops&tabs=yaml
+    ${{ else }}:
+      name: ${{ parameters.AgentPool }}
+      ${{ if ne(parameters.AgentName, 'Any') }}:
+        demands:
+        - Agent.Name -equals ${{ parameters.AgentName }}
+      ${{ if and(eq(parameters.AgentName, 'Any'), ne(parameters.MacOS, 'Any')) }}:
+        demands:
+        - macOS.Name -equals ${{ parameters.MacOS }}
+        - macOS.Architecture -equals ${{ parameters.MacArchitecture }}
+  workspace:
+    clean: all  # Note: $(Agent.TempDirectory) is cleaned between every job
+
+  steps:
+  - checkout: self          # https://docs.microsoft.com/en-us/azure/devops/pipelines/yaml-schema?view=azure-devops&tabs=schema#checkout
+    clean: true             # Executes: git clean -ffdx && git reset --hard HEAD
+    submodules: recursive
+
+  # The following steps are designed for Mac agents only
+  - ${{ if not(startswith(parameters.AgentPool, 'Hosted-Windows-')) }}:
+    - ${{ if eq(parameters.InstallCertificates, 'SecretsStore') }}:
+      - task: InstallAppleCertificate@2
+        displayName: 'Install the iOS certificate'
+        inputs:
+          certSecureFile: 'Components iOS Certificate.p12'
+
+      - task: InstallAppleCertificate@2
+        displayName: 'Install the macOS certificate'
+        inputs:
+          certSecureFile: 'Components Mac Certificate.p12'
+
+      - task: InstallAppleProvisioningProfile@1
+        displayName: 'Install the iOS provisioning profile'
+        inputs:
+          provProfileSecureFile: 'Components iOS Provisioning.mobileprovision'
+
+    - ${{ if eq(parameters.InstallCertificates, 'ProvisionatorTask') }}:
+      - task: xamops.azdevex.provisionator-task.provisionator@2
+        displayName: 'Provision Apple development certs: ${{ parameters.CertificateProvisionatorScript }}'
+        inputs:
+          # The following are also defined in the xamops-azdev-secrets variable group: https://devdiv.visualstudio.com/DevDiv/_library?itemType=VariableGroups&view=VariableGroupView&variableGroupId=168&path=xamops-azdev-secrets
+          provisionator_uri: https://dl.internalx.com/provisionator/664bd334021e3102cdef1af66c4fc9f1b2ecd2a21b47419e80d08da1f6c61c2a
+          provisioning_script: $(Build.SourcesDirectory)/provisioning/${{ parameters.CertificateProvisionatorScript }}
+          provisioning_extra_args: -vvvv
+          github_token: $(GitHub.Token)
+        env:
+          PROVISIONATOR_CHANNEL: ${{ parameters.provisionatorChannel }}
+          AUTH_TOKEN_VSENG_XAMARIN_WIN_XMA_P12: $(xqa--certificates--password)    # Xamarin-Secrets: https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/64e11c84-c922-4ffd-bea9-67ab39354edd/resourceGroups/XamarinSecurity/providers/Microsoft.KeyVault/vaults/xamarin-secrets/overview
+          AUTH_TOKEN_VSENG_XAMARIN_WIN_XMA_3_P12: $(xqa--certificates--password)
+          AUTH_TOKEN_COMPONENTS_MAC_IOS_CERTIFICATE_P12: $(pass--components-mac-ios-certificate-p12)
+        # Task control options: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/tasks?view=azure-devops&tabs=yaml#task-control-options
+        timeoutInMinutes: 20
+
+    - ${{ if eq(parameters.InstallCertificates, 'ProvisionatorScript') }}:
+      - bash: |
+          echo "Initialize PAT: Setting keychain"
+          echo "PROVISIONATOR_CHANNEL: ${PROVISIONATOR_CHANNEL}"
+          githubToken="$(GitHub.Token)"
+          if [[ -n "$githubToken" ]]; then
+            githubTokenPartial="${githubToken:0:8}"
+            echo "githubToken [partial]: ${githubTokenPartial}"
+
+            # Avoid calling 'provisionator-bootstrap.sh keychain set github.com $githubToken' since Provisionator will obtain the token from the AUTH_TOKEN_GITHUB_COM environment variable
+
+            echo "Executing provisionator"
+            chmod +x provisionator-bootstrap.sh
+            ./provisionator-bootstrap.sh ${{ parameters.CertificateProvisionatorScript }} -v -v -v -v || exit 2
+          else
+            echo "ERROR: GitHub.Token build variable not set"
+            exit 1
+          fi
+        env:
+          AUTH_TOKEN_GITHUB_COM: $(GitHub.Token)      # Avoid having Provisionator retrieve the token from the keychain, which can lead to hangs on certain build agents; instead Provisionator will obtain the GitHub token from this environment variable
+          AUTH_TOKEN_VSENG_XAMARIN_WIN_XMA_P12: $(xqa--certificates--password)    # Xamarin-Secrets: https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/64e11c84-c922-4ffd-bea9-67ab39354edd/resourceGroups/XamarinSecurity/providers/Microsoft.KeyVault/vaults/xamarin-secrets/overview
+          AUTH_TOKEN_VSENG_XAMARIN_WIN_XMA_3_P12: $(xqa--certificates--password)
+          AUTH_TOKEN_COMPONENTS_MAC_IOS_CERTIFICATE_P12: $(pass--components-mac-ios-certificate-p12)
+        workingDirectory: provisioning
+        timeoutInMinutes: 5
+        displayName: 'Provision Apple developer certs: ${{ parameters.CertificateProvisionatorScript }}'
+
+    - ${{ if eq(parameters.InstallCertificates, 'Template') }}:
+      - template: install-certificates.yml@templates
+        parameters:
+          DeveloperIdApplication: $(developer-id-application)
+          DeveloperIdInstaller: $(developer-id-installer)
+          IphoneDeveloper: $(iphone-developer)
+          MacDeveloper: $(mac-developer)
+          HostedMacKeychainPassword: $(pass--lab--mac--builder--keychain)     # Xamarin-Secrets
+
+  - powershell: |
+      Write-Host "Agent.Name: $(Agent.Name)"
+    displayName: 'Show Agent.Name'
+
+  # The following steps are designed for Mac agents only
+  - ${{ if not(startswith(parameters.AgentPool, 'Hosted-Windows-')) }}:
+    - bash: |
+        # https://stackoverflow.com/questions/23934425/parse-ifconfig-to-get-only-my-ip-address-using-bash
+
+        en0ip=$(ifconfig en0 | awk '{ print $2 }' | grep -E -o "([0-9]{1,3}[\.]){3}[0-9]{1,3}")
+        if [[ -n $en0ip ]]; then
+          echo $en0ip
+        fi
+
+        en1ip=$(ifconfig en1 | awk '{ print $2 }' | grep -E -o "([0-9]{1,3}[\.]){3}[0-9]{1,3}")
+        if [[ -n $en1ip ]]; then
+          echo $en1ip
+        fi
+      failOnStderr: false
+      workingDirectory: $(Build.SourcesDirectory)
+      displayName: 'Show IP address'
+
+    - bash: |
+        buildStagingDirectory="$(Build.ArtifactStagingDirectory)"
+        echo "Build.ArtifactStagingDirectory: ${buildStagingDirectory}"
+
+        pkgInfoDirectory="${buildStagingDirectory}/pkg.info"
+        echo "Package info directory: ${pkgInfoDirectory}"
+
+        if [[ ! -d $pkgInfoDirectory ]]; then
+          echo "Creating ${pkgInfoDirectory}"
+          mkdir $pkgInfoDirectory
+        fi
+
+        # Show brew location
+        echo
+        which brew
+
+        topLevelPackagesPathAndFilename="${pkgInfoDirectory}/${HOSTNAME}.BrewPackages.TopLevel.txt"
+        allPackagesPathAndFilename="${pkgInfoDirectory}/${HOSTNAME}.BrewPackages.All.txt"
+
+        echo
+        echo "--------------------------------------------------------------------------------"
+        echo "Brew installed (top-level) packages"
+        echo "--------------------------------------------------------------------------------"
+        brew leaves > $topLevelPackagesPathAndFilename
+        cat $topLevelPackagesPathAndFilename
+
+        echo
+        echo "--------------------------------------------------------------------------------"
+        echo "All brew packages"
+        echo "--------------------------------------------------------------------------------"
+        brew list --versions > $allPackagesPathAndFilename
+        cat $allPackagesPathAndFilename
+      failOnStderr: false
+      displayName: 'Show brew packages'
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish BrewPackages.txt'
+      inputs:
+        artifactName: brew.packages
+        pathToPublish: '$(Build.ArtifactStagingDirectory)/pkg.info'
+
+    - template: agent-cleanser/v1.yml@templates
+      parameters:
+        CleanseProcesses: ${{ parameters.CleanseProcesses }}
+        SelfHealPowerShell: ${{ parameters.SelfHealPowerShell }}
+        TeminateSimulators: ${{ parameters.TeminateSimulators }}
+        TerminatePopups: ${{ parameters.TerminatePopups }}
+        UninstallMono: ${{ parameters.UninstallMono }}
+        UninstallXamarinMac: ${{ parameters.UninstallXamarinMac }}
+        CleanseProvisionatorCache: ${{ parameters.CleanseProvisionatorCache }}
+        CleanseXcodeArchives: ${{ parameters.CleanseXcodeArchives }}
+        CleanseAgentToolsDotNet: ${{ parameters.CleanseAgentToolsDotNet }}
+        CleanseAgentRebooter: ${{ parameters.CleanseAgentRebooter }}
+        CheckBrewInstall: ${{ parameters.CheckBrewInstall }}
+        InstallBrewPackages: ${{ parameters.InstallBrewPackages }}
+        BrewPackagesToInstall: ${{ parameters.BrewPackagesToInstall }}
+        GitHubToken: $(GitHub.Token)
+
+    - ${{ if eq(parameters.Provision, true) }}:
+      - bash: |
+          provisioningScript="${{ parameters.ProvisioningScript }}"
+          echo "Provisioning script: ${provisioningScript}"
+
+          echo "Initialize PAT: Setting keychain"
+          echo "PROVISIONATOR_CHANNEL: ${PROVISIONATOR_CHANNEL}"
+          githubToken="$(GitHub.Token)"
+          if [[ -n "$githubToken" ]]; then
+            githubTokenPartial="${githubToken:0:8}"
+            echo "githubToken [partial]: ${githubTokenPartial}"
+
+            # Avoid calling 'provisionator-bootstrap.sh keychain set github.com $githubToken' since Provisionator will obtain the token from the AUTH_TOKEN_GITHUB_COM environment variable
+
+            echo "Executing provisionator"
+            chmod +x provisionator-bootstrap.sh
+            ./provisionator-bootstrap.sh $provisioningScript -v -v -v -v || exit 2
+          else
+            echo "ERROR: GitHub.Token build variable not set"
+            exit 1
+          fi
+        env:
+          AUTH_TOKEN_GITHUB_COM: $(GitHub.Token)      # Avoid having Provisionator retrieve the token from the keychain, which can lead to hangs on certain build agents; instead Provisionator will obtain the GitHub token from this environment variable
+        workingDirectory: provisioning
+        timeoutInMinutes: 20
+        displayName: Provision
+
+    - ${{ if gt(parameters.WaitTime, 0) }}:
+      - powershell: |
+          $waitTime = ${{ parameters.WaitTime }}
+          Write-Host "Wait time: ${waitTime}"
+          Start-Sleep $waitTime
+        displayName: 'Wait: Opportunity to cleanse other agents'
+
+    - ${{ if eq(parameters.RebootAgent, true) }}:
+      # Sets the AzDO.BearerToken variable used as the auth token to disable/reenable agents
+      - template: ./generate-token.yml
+      - template: agent-rebooter/mac.v1.yml@templates
+        parameters:
+          AgentPoolAccessToken: $(AzDO.BearerToken)
+
+      - powershell: |
+          function Stage-File([string] $ScriptsStagingDirectory, [string] $PathAndFilename) {
+              $scriptExists = $false
+              if ([IO.File]::Exists($PathAndFilename)) {
+                  $scriptExists = $true
+                  $filename = [IO.Path]::GetFileName($PathAndFilename)
+                  $stagingPathAndFilename = [IO.Path]::Combine($ScriptsStagingDirectory, $filename)
+                  Write-Host "Copying '${PathAndFilename}' to '${stagingPathAndFilename}'"
+                  [IO.File]::Copy($PathAndFilename, $stagingPathAndFilename)
+              } else {
+                  Write-Host "WARNING: File not found: ${PathAndFilename}"
+              }
+              return $scriptExists
+          }
+
+          $stagingDirectory = "$(Build.ArtifactStagingDirectory)"
+          $scriptsStagingDirectory = [IO.Path]::Combine($stagingDirectory, 'scripts')
+          Write-Host "Build.ArtifactStagingDirectory: ${stagingDirectory}"
+          Write-Host "Scripts staging directory: ${scriptsStagingDirectory}"
+
+          if (-not ([IO.Directory]::Exists($scriptsStagingDirectory))) {
+            Write-Host "Creating directory: ${scriptsStagingDirectory}"
+            [IO.Directory]::CreateDirectory($scriptsStagingDirectory)
+          }
+
+          $scriptsExist = $false
+          $user = $env:USER
+          $rebooterPath = "/Users/${user}/Agent.Rebooter"
+
+          Write-Host "User: ${user}"
+          Write-Host "Rebooter path: ${rebooterPath}"
+
+          if ([IO.Directory]::Exists($rebooterPath)) {
+            $files = @('enable-agent.bootstrapper.sh', 'EnableAgent.ps1', 'com.enable.agent2.plist', 'com.reboot.agent.plist')
+            $files | foreach {
+              $pathAndFilename = [IO.Path]::Combine($rebooterPath, $_)
+              $scriptExists = Stage-File -ScriptsStagingDirectory $scriptsStagingDirectory -PathAndFilename $pathAndFilename
+              $scriptsExist = $scriptsExist -or $scriptExists
+            }
+          } else {
+            Write-Host "WARNING: Agent-Rebooter script staging skipped. Rebooter path does not exist"
+          }
+
+          Write-Host "Setting Publish.Scripts: ${scriptsExist}"
+          Write-Host "Setting Scripts.Directory: ${scriptsStagingDirectory}"
+          Write-Host "##vso[task.setvariable variable=Publish.Scripts]${scriptsExist}"
+          Write-Host "##vso[task.setvariable variable=Scripts.Directory]${scriptsStagingDirectory}"
+        displayName: 'Stage agent-rebooter scripts'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish: Agent-Rebooter scripts'
+        condition: and(succeeded(), eq(variables['Publish.Scripts'], 'true'))
+        inputs:
+          artifactName: rebooter.scripts
+          pathToPublish: $(Scripts.Directory)
+
+    - ${{ if eq(parameters.UninstallCertificates, true) }}:
+      - template: uninstall-certificates/v1.yml@templates
+        parameters:
+          HostedMacKeychainPassword: $(pass--lab--mac--builder--keychain)     # Xamarin-Secrets: https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/64e11c84-c922-4ffd-bea9-67ab39354edd/resourceGroups/XamarinSecurity/providers/Microsoft.KeyVault/vaults/xamarin-secrets/overview
+
+  # Windows pool
+  - ${{ if startswith(parameters.AgentPool, 'Hosted-Windows-') }}:
+    - ${{ if eq(parameters.Provision, true) }}:
+      - ${{ if eq(parameters.ProvisioningScript, '7zip.csx') }}:
+        - powershell: |
+            $path = $env:ProgramFiles
+            ls "$path"
+
+            $path7zip = Join-Path -Path $path -ChildPath '7-Zip'
+            Write-Host "7-zip path: ${path7zip}"
+
+            $filename = '7z.exe'
+            $pathAndFilename = Join-Path -Path $path7zip -ChildPath $filename
+
+            Write-Host "7-zip: ${pathAndFilename}"
+            if (Test-Path -Path -$path7zip -PathType Container) {
+                Write-Host "Directory contents"
+                ls "$path7zip"
+            }
+
+            if (Test-Path -Path $pathAndFilename -PathType Leaf) {
+                Write-Host "Removing: ${pathAndFilename}"
+                Remove-Item $pathAndFilename -Force
+            } else {
+                Write-Host "${pathAndFilename} not found"
+            }
+          displayName: 'Cleanse 7-zip'
+
+      - task: xamops.azdevex.provisionator-task.provisionator@2
+        displayName: Provision
+        inputs:
+          # The following are also defined in the xamops-azdev-secrets variable group: https://devdiv.visualstudio.com/DevDiv/_library?itemType=VariableGroups&view=VariableGroupView&variableGroupId=168&path=xamops-azdev-secrets
+          provisionator_uri: https://dl.internalx.com/provisionator/664bd334021e3102cdef1af66c4fc9f1b2ecd2a21b47419e80d08da1f6c61c2a
+          provisioning_script: $(Build.SourcesDirectory)/provisioning/${{ parameters.ProvisioningScript }}
+          provisioning_extra_args: -vvvv
+          github_token: $(GitHub.Token)
+        env:
+          PROVISIONATOR_CHANNEL: ${{ parameters.provisionatorChannel }}
+        # Task control options: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/tasks?view=azure-devops&tabs=yaml#task-control-options
+        timeoutInMinutes: 20
