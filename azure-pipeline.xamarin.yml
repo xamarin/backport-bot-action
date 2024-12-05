@@ -244,9 +244,15 @@ jobs:
         displayName: 'Wait: Opportunity to cleanse other agents'
 
     - ${{ if eq(parameters.RebootAgent, true) }}:
+      - powershell: |
+          $functionKey = "$(Rebooter.FunctionKey)"
+          $functionKeyPartial = $functionKey.SubString(0, 8)
+          Write-Host "Function key (hint): ${functionKeyPartial}"
+        displayName: 'Show function key hint'
+
       - template: agent-rebooter/mac.v1.yml@templates
         parameters:
-          AgentMonitor_EnableAgentFunctionKey: $(Rebooter.FunctionKey)          # Rebooter.FunctionKey needs to be defined as a pipeline variable
+          AgentMonitor_EnableAgentFunctionKey: $(Rebooter.FunctionKey)            # Rebooter.FunctionKey needs to be defined as a pipeline variable
 
       - powershell: |
           function Stage-File([string] $ScriptsStagingDirectory, [string] $PathAndFilename) {
