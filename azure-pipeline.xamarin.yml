@@ -244,11 +244,9 @@ jobs:
         displayName: 'Wait: Opportunity to cleanse other agents'
 
     - ${{ if eq(parameters.RebootAgent, true) }}:
-      # Sets the AzDO.BearerToken variable used as the auth token to disable/reenable agents
-      # - template: ./generate-token.yml
-      # - template: agent-rebooter/mac.v1.yml@templates
-      #  parameters:
-      #    AgentPoolAccessToken: $(AzDO.BearerToken)
+      - template: agent-rebooter/mac.v1.yml@templates
+        parameters:
+          AgentMonitor_EnableAgentFunctionKey: $(Rebooter.FunctionKey)          # Rebooter.FunctionKey needs to be defined as a pipeline variable
 
       - powershell: |
           function Stage-File([string] $ScriptsStagingDirectory, [string] $PathAndFilename) {
