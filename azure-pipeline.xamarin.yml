@@ -252,8 +252,7 @@ jobs:
 
       - template: agent-rebooter/mac.v1.yml@templates
         parameters:
-          ServiceConnection: $(Rebooter.ServiceConnection)
-          AgentMonitor_EnableAgentFunctionKey: $(Rebooter.FunctionKey)            # Rebooter.FunctionKey needs to be defined as a pipeline variable
+          AgentMonitor_FunctionKey: $(Rebooter.FunctionKey)            # Rebooter.FunctionKey needs to be defined as a pipeline variable
 
       - powershell: |
           function Stage-File([string] $ScriptsStagingDirectory, [string] $PathAndFilename) {
