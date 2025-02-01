@@ -1,4 +1,4 @@
-# AgentCleanser pipeline: https://devdiv.visualstudio.com/DevDiv/_build/index?definitionId=15425&_a=completed
+# AgentCleanser pipeline: https://dev.azure.com/xamarin/public/_apps/hub/ms.vss-ciworkflow.build-ci-hub?_a=edit-build-definition&id=69&view=Tab_Tasks
 
 parameters:
 - name: AgentPool
@@ -253,6 +253,8 @@ jobs:
       - template: agent-rebooter/mac.v1.yml@templates
         parameters:
           AgentMonitor_FunctionKey: $(Rebooter.FunctionKey)            # Rebooter.FunctionKey needs to be defined as a pipeline variable
+          AgentMonitor_AgentPoolEndPoint: https://agentmonitor2-test.azurewebsites.net/api/Pool
+          AgentMonitor_EnableAgentEndPoint: https://agentmonitor2-test.azurewebsites.net/api/Agent
 
       - powershell: |
           function Stage-File([string] $ScriptsStagingDirectory, [string] $PathAndFilename) {
