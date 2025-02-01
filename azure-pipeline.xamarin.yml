@@ -253,8 +253,8 @@ jobs:
       - template: agent-rebooter/mac.v1.yml@templates
         parameters:
           AgentMonitor_FunctionKey: $(Rebooter.FunctionKey)            # Rebooter.FunctionKey needs to be defined as a pipeline variable
-          AgentMonitor_AgentPoolEndPoint: https://agentmonitor2-test.azurewebsites.net/api/Pool
-          AgentMonitor_EnableAgentEndPoint: https://agentmonitor2-test.azurewebsites.net/api/Agent
+          AgentMonitor_PoolEndPoint: https://agentmonitor2-test.azurewebsites.net/api/Pool
+          AgentMonitor_AgentEndPoint: https://agentmonitor2-test.azurewebsites.net/api/Agent
 
       - powershell: |
           function Stage-File([string] $ScriptsStagingDirectory, [string] $PathAndFilename) {
